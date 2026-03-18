@@ -1,2 +1,2 @@
-projectdiscovery/subfinder
-projectdiscovery/httpx
+docker.io/projectdiscovery/subfinder:latest
+docker.io/projectdiscovery/httpx:latest

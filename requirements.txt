@@ -1,3 +1,4 @@
 fastapi[standard]~=0.135.1
 docker~=7.1.0
 wappalyzer~=1.0.20
+redis~=7.3.0

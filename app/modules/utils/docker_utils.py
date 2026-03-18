@@ -1,4 +1,4 @@
-from modules.utils.utils import read_required_images
+from app.modules.utils.utils import read_required_images
 
 async def check_and_update_images():
     # Measure the performance of this function
@@ -6,7 +6,10 @@ async def check_and_update_images():
     print("Checking images are up-to-date")
     client = docker.from_env()
     requirements: list[str] = read_required_images()
-    images = client.images.list()
+    images = []
+    for image in client.images.list():
+        if len(image.tags) != 0:
+            images.append(image.tags[0])
     # blocking btw
     if not images:
         print("No images found\n Filling with requirements")
