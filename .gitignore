@@ -1,4 +1,3 @@
 logs/*
 reports/*
 app/config/.env
-/*/*/.env

@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional
 
 from docker.models.containers import Container
 
@@ -7,8 +6,8 @@ from app.modules.pipeline.context import DiscoveryContext
 from app.modules.scanners.base import IScanner
 
 
-class HTTPX(IScanner):
-    _BASE_REPORT_PATH: str = f"{Path.cwd()}/app/reports/httpx"
+class WhatWeb(IScanner):
+    _BASE_REPORT_PATH: str = f"{Path.cwd()}/app/reports/whatweb"
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         container = self._spawn(session_id, ctx)
@@ -19,7 +18,7 @@ class HTTPX(IScanner):
         if exit_code != 0:
             # throw logs and errors
             container.remove()
-            raise RuntimeError(f"HTTPX failed with exit code {exit_code}")
+            raise RuntimeError(f"WhatWeb failed with exit code {exit_code}")
         container.remove()
         return self.parse_results(session_id)
 
@@ -45,9 +44,9 @@ class HTTPX(IScanner):
         import docker
         client = docker.from_env()
         client.containers.run(
-            image="projectdiscovery/httpx",
+            image="localhost/whatweb", #TODO: publish this image to docker.io
             name=container_name,
-            command=f"-u {ctx.primary_url} -delay 5s -pipeline -http2 -sc -ct -server -td -method -ip -cdn -probe -j -irr -o /reports/{container_name}.json",
+            command=f"./whatweb --log-json /reports/{container_name}.json -a 3 {ctx.primary_url}",
             volumes={
                 self._BASE_REPORT_PATH: {
                     "bind": "/reports/",

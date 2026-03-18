@@ -57,7 +57,7 @@ class Subfinder(IScanner):
             name=container_name,
             command=f"-d {ctx.primary_url} -all -cs -oJ -o /reports/{container_name}.json",
             volumes={
-                f"{Path.cwd()}/app/reports/subfinder": {
+                self._BASE_REPORT_PATH: {
                     "bind": "/reports/",
                     "mode": "rw",
                 }
