@@ -3,3 +3,4 @@ docker~=7.1.0
 wappalyzer~=1.0.20
 redis~=7.3.0
 sslyze~=6.3.0
+loguru~=0.7.3

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from docker.models.containers import Container
+from loguru import logger
 from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanner, SslyzeOutputAsJson, \
     ServerScanResultAsJson
 
@@ -33,24 +34,7 @@ class SSLyze(IScanner):
     }
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
-        # requests = []
-        # for host in ctx.live_hosts:
-        #     if ctx.has_https:
-        #         requests.append(
-        #             ServerScanRequest(
-        #                 server_location=ServerNetworkLocation(host, 443),
-        #                 scan_commands={
-        #                     ScanCommand.SSL_2_0_CIPHER_SUITES,
-        #                     ScanCommand.TLS_1_0_CIPHER_SUITES,
-        #                     ScanCommand.TLS_1_1_CIPHER_SUITES,
-        #                     ScanCommand.TLS_1_3_CIPHER_SUITES,
-        #                     ScanCommand.CERTIFICATE_INFO,
-        #                     ScanCommand.HTTP_HEADERS,
-        #                 }
-        #             )
-        #         )
-
-
+        logger.info(f"Starting SSlyze scan: {session_id}")
         requests = [ServerScanRequest(
             server_location=ServerNetworkLocation(ctx.primary_url.removeprefix("https://"), 443),
             scan_commands=self._BASELINE_COMMANDS
@@ -84,7 +68,7 @@ class SSLyze(IScanner):
         pass
 
     def _cleanup(self, session_id: str) -> None:
-            pass
+        pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         pass

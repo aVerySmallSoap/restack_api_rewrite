@@ -35,6 +35,8 @@ class DiscoveryContext:
     session_id: str
     primary_url: str
     primary_host: str
+    auth_config: Optional[dict] = None
+    kata_two_pass: bool = False # Will try and launch two containerized scans: non-headless and a headless-scan
 
     # Subfinder + httpx
     live_hosts: list[str] = field(default_factory=list)
@@ -62,8 +64,6 @@ class DiscoveryContext:
     wapiti_scope: str = "domain"
 
     swagger_url: Optional[str] = None
-
-    auth_config: Optional[dict] = None
 
     # serialization
     def to_json(self) -> str:

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from docker.models.containers import Container
+from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.scanners.base import IScanner
@@ -11,6 +12,7 @@ class Subfinder(IScanner):
     _BASE_REPORT_PATH: str = f"{Path.cwd()}/app/reports/subfinder"
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+        logger.info(f"Starting Subfinder scan: {session_id}")
         container = self._spawn(session_id, ctx)
 
         result = container.wait()
@@ -18,6 +20,7 @@ class Subfinder(IScanner):
 
         if exit_code != 0:
             #throw logs and errors
+            logger.debug(f"Subfinder exited abruptly! Exit code: {exit_code}")
             container.remove()
             raise RuntimeError(f"Subfinder failed with exit code {exit_code}")
         container.remove()
@@ -25,6 +28,7 @@ class Subfinder(IScanner):
 
     def parse_results(self, session_id: str) -> dict:
         # do some parsing here and return a dict
+        logger.info(f"Parsing Subfinder results for session: {session_id}")
         with open(f"{self._BASE_REPORT_PATH}/{session_id}.json") as f:
             base_input = json.loads(f.readline()).get("input")
             sources: set = set()
@@ -40,6 +44,7 @@ class Subfinder(IScanner):
 
     def _cleanup(self, session_id: str) -> None:
         import docker
+        logger.info("Cleaning up Subfinder artifacts")
         Path(f"{self._BASE_REPORT_PATH}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
@@ -47,15 +52,23 @@ class Subfinder(IScanner):
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:
+            logger.warning(f"Could not find container with ID: {session_id}. Skipping cleanup")
             pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker
+        logger.info(f"Spawning container: {container_name}")
         client = docker.from_env()
         return client.containers.run(
             image="projectdiscovery/subfinder",
             name=container_name,
-            command=f"-d {ctx.primary_url} -all -cs -oJ -o /reports/{container_name}.json",
+            command=[
+                "-all",
+                "-cs",
+                "-oJ",
+                "-o", f"/reports/{container_name}.json",
+                "-d", ctx.primary_url
+            ],
             volumes={
                 self._BASE_REPORT_PATH: {
                     "bind": "/reports/",
