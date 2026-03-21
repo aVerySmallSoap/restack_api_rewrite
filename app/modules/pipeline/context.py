@@ -11,7 +11,7 @@ class TechEntry:
     name: str
     version: Optional[str]
     source: str # WhatWeb | Wappalyzer-Next | HTTPX
-    categories: list[str]
+    categories: Optional[list[str]] = None
 
 @dataclass
 class BannerEntry:
@@ -49,7 +49,7 @@ class DiscoveryContext:
     open_ports: dict[str, list[int]] = field(default_factory=dict)
     # e.g {"example.com: [80,443]}
 
-    # WhatWeb + Wappalyzer
+    # WhatWeb + Wappalyzer + Httpx
     versioned_tech: list[TechEntry] = field(default_factory=list)
     nonversioned_tech: list[TechEntry] = field(default_factory=list)
 

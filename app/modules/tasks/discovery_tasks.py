@@ -1,14 +1,15 @@
 import json
 
-from celery import shared_task
 from app.modules.pipeline.context import DiscoveryContext, TechEntry, BannerEntry, TLSFinding, SiteMap
 from app.modules.scanners.discovery.subfinder.subfinder import Subfinder
-from app.modules.scanners.discovery.httpx_scanner.httpx_scanner import HTTPX_SCANNER
+from app.modules.scanners.discovery.httpx_scanner.httpxscanner import HttpxScanner
 from app.modules.scanners.discovery.sslyze.sslyze import SSLyze
 from app.modules.scanners.discovery.whatweb.whatweb import WhatWeb
 from app.modules.scanners.discovery.wappalyzer_next.wappalyzer_next import WappalyzerNext
 from app.modules.scanners.discovery.katana.katana import Katana
 from app.modules.celery_app import celery_app
+from app.modules.interfaces.options import KatanaContext
+
 
 @celery_app.task(bind=True)
 def task_subfinder(self, session_id: str, ctx_json: str) -> dict:
@@ -16,14 +17,15 @@ def task_subfinder(self, session_id: str, ctx_json: str) -> dict:
     return {"type": "subfinder", "result": Subfinder().start_scan(session_id, ctx)}
 
 @celery_app.task(bind=True)
-def task_katana(self, session_id:str, ctx_json: str) -> dict:
+def task_katana(self, session_id:str, ctx_json: str, katana_context: str) -> dict:
     ctx = DiscoveryContext(**json.loads(ctx_json))
-    return {"type": "katana", "result": Katana().start_scan(session_id, ctx)}
+    opts = KatanaContext(**json.loads(katana_context)) # TODO: Find a better way to build different contexts
+    return {"type": "katana", "result": Katana().start_scan(session_id, ctx, opts)}
 
 @celery_app.task(bind=True)
 def task_httpx(self, session_id: str, ctx_json: str) -> dict:
     ctx = DiscoveryContext(**json.loads(ctx_json))
-    return {"type": "httpx", "result": HTTPX_SCANNER().start_scan(session_id, ctx)}
+    return {"type": "httpx", "result": HttpxScanner().start_scan(session_id, ctx)}
 
 @celery_app.task(bind=True)
 def task_sslyze(self, session_id: str, ctx_json: str) -> dict:
@@ -55,26 +57,26 @@ def build_discovery_context(self, results: list[dict], session_id: str, ctx_json
             case "subfinder":
                 # item["result"] is {host: {hosts: [...], sources: {...}}}
                 if item["result"] is None or item["result"].values() == {}:
-                    break
+                    continue
                 for host_data in item["result"].values():
                     ctx.live_hosts.extend(host_data.get("hosts", []))
 
             case "httpx":
                 if item["result"] is None or item["result"].values() == {}:
-                    break
+                    continue
                 for host, banner_data in item["result"].get("banners", {}).items():
                     ctx.banners[host] = BannerEntry(**banner_data)
                 ctx.has_https = item["result"].get("has_https", False)
 
             case "sslyze":
                 if item["result"] is None or item["result"].values() == {}:
-                    break
+                    continue
                 for finding in item["result"].get("tls_findings", []):
                     ctx.tls_findings.append(TLSFinding(**finding))
 
             case "whatweb" | "wappalyzer":
                 if item["result"] is None or item["result"].values() == {}:
-                    break
+                    continue
                 for tech in item["result"].get("versioned", []):
                     ctx.versioned_tech.append(TechEntry(**tech))
                 for tech in item["result"].get("nonversioned", []):
@@ -82,7 +84,7 @@ def build_discovery_context(self, results: list[dict], session_id: str, ctx_json
 
             case "katana":
                 if item["result"] is None or item["result"].values() == {}:
-                    break
+                    continue
                 ctx.site_map = SiteMap(
                     collection=item["result"].get("collection", []),
                     map=item["result"].get("site_map", {})

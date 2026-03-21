@@ -3,16 +3,31 @@ from abc import ABC, abstractmethod
 from docker.models.containers import Container
 
 from app.modules.pipeline.context import DiscoveryContext
+from app.modules.interfaces.options import BaseContext
 
 
 class IScanner(ABC):
-
+    @property
     @abstractmethod
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def _base_report_path(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def _prefix(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def _scanner_context(self) -> BaseContext:
         pass
 
     @abstractmethod
-    def parse_results(self, session_id: str) -> dict:
+    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> BaseContext:
+        pass
+
+    @abstractmethod
+    def parse_results(self, session_id: str) -> BaseContext:
         pass
 
     @abstractmethod
