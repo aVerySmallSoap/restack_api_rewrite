@@ -4,13 +4,13 @@ from typing import Optional
 
 import redis
 
-redis_client = redis.Redis.from_url(url="rediss://")
+redis_client = redis.Redis.from_url(url="redis://localhost:6379")
 
 @dataclass
 class TechEntry:
     name: str
     version: Optional[str]
-    source: str
+    source: str # WhatWeb | Wappalyzer-Next | HTTPX
     categories: list[str]
 
 @dataclass
@@ -31,14 +31,19 @@ class TLSFinding:
     detail: Optional[str]
 
 @dataclass
+class SiteMap:
+    collection: list[dict]
+    map: dict[str, dict]
+
+@dataclass
 class DiscoveryContext:
     session_id: str
     primary_url: str
     primary_host: str
     auth_config: Optional[dict] = None
-    kata_two_pass: bool = False # Will try and launch two containerized scans: non-headless and a headless-scan
+    site_map: Optional[SiteMap] = None
 
-    # Subfinder + httpx
+    # Subfinder + httpx_scanner
     live_hosts: list[str] = field(default_factory=list)
 
     open_ports: dict[str, list[int]] = field(default_factory=dict)
@@ -48,7 +53,7 @@ class DiscoveryContext:
     versioned_tech: list[TechEntry] = field(default_factory=list)
     nonversioned_tech: list[TechEntry] = field(default_factory=list)
 
-    # httpx
+    # httpx_scanner
     banners: dict[str, BannerEntry] = field(default_factory=dict)
 
     # SSLyze

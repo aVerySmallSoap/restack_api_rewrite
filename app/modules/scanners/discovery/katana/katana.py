@@ -6,50 +6,51 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.scanners.base import IScanner
-from modules.utils.utils import map_endpoints
+from app.modules.interfaces.base import IScanner
+from app.modules.utils.utils import map_endpoints
+from app.modules.interfaces.enums.options import KatanaContext
+from app.modules.utils.utils import is_same_host
 
 
 class Katana(IScanner):
     _BASE_REPORT_PATH: str = f"{Path.cwd()}/app/reports/katana"
 
-
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: DiscoveryContext, opts: KatanaContext = KatanaContext()) -> dict:
         logger.info(f"Starting Katana scan: {session_id}")
-        if ctx.kata_two_pass:
-            logger.info("Started a two-pass scan")
-            container = self._spawn(session_id, ctx)
+        # prepare headless just in case
+        headless_container: Container | None = None
+        opts.primary_host = ctx.primary_host
+
+        if opts.is_two_pass:
+            logger.info("Scan is configured to be a two-pass scan. Spawning a headless container")
             headless_container = self._spawn_headless(session_id, ctx)
+            opts.headless_container_name = headless_container.name
 
-            result = container.wait()
-            headless_result = headless_container.wait()
-            exit_code, headless_exit_code = result["StatusCode"], headless_result["StatusCode"]
+        container = self._spawn(session_id, ctx)
+        opts.standard_container_name = container.name
+        result = container.wait()
+        headless_result = headless_container.wait() if headless_container else None
+        katana_metadata: dict = {
+            "standard": {
+                "container": container,
+                "exit_code": result["StatusCode"]
+            },
+            "headless": {
+                "container": headless_container,
+                "exit_code": headless_result["StatusCode"]
+            } if headless_container else None,
+        }
 
-            if exit_code != 0:
-                logger.debug(f"Katana exited abruptly! Exit code: {exit_code}")
-                # container.remove()
-                raise RuntimeError(f"Katana failed with exit code {exit_code}")
-            if headless_exit_code != 0:
-                logger.debug(f"Headless Katana exited abruptly! Exit code: {exit_code}")
-                # headless_container.remove()
-                raise RuntimeError(f"Headless Katana failed with exit code {exit_code}")
-            # remove containers
-            # container.remove()
-            # headless_container.remove()
-            return self.parse_results(session_id)
-        else:
-            container = self._spawn(session_id, ctx)
-            result = container.wait()
-            exit_code = result["StatusCode"]
+        for meta_container in katana_metadata.values():
+            if not meta_container:
+                continue
+            if meta_container.get("exit_code") != 0:
+                logger.error(f"Katana container: {meta_container.get('container').name} has exited abruptly! Error code: {meta_container.get("exit_code")}")
+                raise RuntimeError(f"Katana container: {meta_container.get('container').name} exited abruptly!")
+        return self.parse_results(session_id, opts)
 
-            if exit_code != 0:
-                logger.debug(f"Katana exited abruptly! Exit code: {exit_code}")
-                # container.remove()
-                raise RuntimeError(f"Katana failed with exit code {exit_code}")
-            # container.remove()
-            return self.parse_results(session_id)
-
-    def parse_results(self, session_id: str) -> dict:
+    def parse_results(self, session_id: str, opts: KatanaContext = KatanaContext()) -> dict:
+        from urllib.parse import urlparse
         logger.info(f"Parsing Katana results for session: {session_id}")
         collection: list[dict] = []
         hash_map: list[str] = []
@@ -57,50 +58,63 @@ class Katana(IScanner):
 
         # endpoint validation
         # check for a headless_ report to signal a two-pass
-        if Path.exists(Path(f"{self._BASE_REPORT_PATH}/headless_{session_id}.json")):
+        if opts.is_two_pass:
             with open(f"{self._BASE_REPORT_PATH}/headless_{session_id}.json") as f:
                 for line in f.read().splitlines():
+                    json_line = json.loads(line)
+                    if not is_same_host(opts.primary_host, json_line["request"].get("endpoint")):
+                        print(f"We hit something! Check if they are the same: {opts.primary_host} ? {json_line["request"].get("endpoint")}")
+                        continue
                     line_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
                     hash_map.append(line_hash)
-                    json_line = json.loads(line)
-                    endpoints.add(json_line.get("endpoint"))
+                    endpoints.add(json_line["request"].get("endpoint"))
                     collection.append(json_line)
 
         with open(f"{self._BASE_REPORT_PATH}/standard_{session_id}.json") as f:
             for line in f.read().splitlines():
+                json_line = json.loads(line)
+                if not is_same_host(opts.primary_host, json_line["request"].get("endpoint")):
+                    continue
                 line_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
                 if line_hash in hash_map:
                     continue
-                json_line = json.loads(line)
-                endpoints.add(json_line.get("endpoint"))
+                endpoints.add(json_line["request"].get("endpoint"))
                 collection.append(json_line)
         site_map = map_endpoints(endpoints)
+        # test output
+        with open(f"{self._BASE_REPORT_PATH}/parsed_{session_id}.json", "w") as writable:
+            writable.write(json.dumps({"collection": collection, "site_map": site_map}, indent=4))
+
+        self._cleanup(session_id, opts)
         return {"collection": collection, "site_map": site_map}
 
-    def _cleanup(self, session_id: str) -> None:
+    def _cleanup(self, session_id: str, opts: KatanaContext = KatanaContext()) -> None:
         import docker
         logger.info("Cleaning up Katana artifacts")
 
+        if opts.is_two_pass:
+            Path(f"{self._BASE_REPORT_PATH}/headless_{session_id}.json").unlink(missing_ok=True)
+
         Path(f"{self._BASE_REPORT_PATH}/standard_{session_id}.json").unlink(missing_ok=True)
-        Path(f"{self._BASE_REPORT_PATH}/headless_{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
-            container = client.containers.get(f"katana_{session_id}")
-            headless_container = client.containers.get(f"headless_katana_{session_id}")
+            container = client.containers.get(opts.standard_container_name)
             container.stop(timeout=5)
-            headless_container.stop(timeout=5)
             container.remove()
-            headless_container.remove()
+            if opts.is_two_pass:
+                headless_container = client.containers.get(opts.headless_container_name)
+                headless_container.stop(timeout=5)
+                headless_container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Could not find container with name: katana_{session_id}. Skipping cleanup")
-            pass
+            logger.warning(f"Containers could not be found! Skipping cleanup...")
+            return
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker
-        logger.info(f"Spawning container: standard_{container_name}")
+        logger.info(f"Spawning container: katana_{container_name}")
         client = docker.from_env()
-        client.containers.run(
-            image="projectdiscovery/katana",  # TODO: publish this image to docker.io
+        return client.containers.run(
+            image="projectdiscovery/katana",
             name=f"katana_{container_name}",
             command=[
                 "-or",
@@ -123,18 +137,17 @@ class Katana(IScanner):
             detach=True,
             auto_remove=False,
         )
-        return client.containers.get(f"katana_{container_name}")
 
-    def _spawn_headless(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn_headless(self, container_name: str, ctx: DiscoveryContext, opts: KatanaContext = KatanaContext()) -> Container:
         import docker
-        logger.info(f"Spawning headless container: headless_{container_name}")
+        logger.info(f"Spawning headless container: katana_headless_{container_name}")
         client = docker.from_env()
-        client.containers.run(
-            image="projectdiscovery/katana",  # TODO: publish this image to docker.io
-            name=f"headless_katana_{container_name}",
+        return client.containers.run(
+            image="projectdiscovery/katana",
+            name=f"katana_headless_{container_name}",
             command=[
                 "-headless",
-                "-scp", "/usr/bin/chromium",
+                "-scp", opts.headless_chrome_binary,
                 "-nos",
                 "-or",
                 "-ob",
@@ -156,4 +169,3 @@ class Katana(IScanner):
             detach=True,
             auto_remove=False,
         )
-        return client.containers.get(f"headless_katana{container_name}")
