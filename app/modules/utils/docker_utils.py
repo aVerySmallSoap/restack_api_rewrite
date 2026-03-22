@@ -1,6 +1,6 @@
 from app.modules.utils.utils import read_required_images
 
-async def check_and_update_images():
+def check_and_update_images():
     # Measure the performance of this function
     import docker
     from loguru import logger
@@ -17,7 +17,6 @@ async def check_and_update_images():
         for req in requirements:
             client.images.pull(req)
         logger.success("Images pulled and updated")
-        return
     else:
         for req in requirements:
             if req not in images:

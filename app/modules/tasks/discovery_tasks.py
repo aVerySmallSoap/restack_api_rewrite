@@ -44,13 +44,13 @@ def task_wappalyzer(self, session_id: str, ctx_json: str) -> dict:
 
 
 @celery_app.task(bind=True)
-def build_discovery_context(self, results: list[dict], session_id: str, ctx_json: str) -> str:
+def build_discovery_context(self, updated_ctx: str, results: list[dict], session_id: str) -> str:
     """
     Chord callback — fires after all Phase 1 tasks finish.
     Merges all scanner results into DiscoveryContext and saves to Redis.
     Returns ctx_json for the next phase in the chain.
     """
-    ctx = DiscoveryContext(**json.loads(ctx_json))
+    ctx = DiscoveryContext(**json.loads(updated_ctx))
     print(f"Enumeration Context type of site_map: {type(ctx.enumeration_context.site_map)}.")
 
     for item in results:
@@ -97,7 +97,6 @@ def build_enumeration_context(self, results: list[dict], session_id: str, ctx_js
                     collection=result.get("collection", []),
                     map=result.get("site_map", {})
                 )
-                enumeration_context.versioned_tech = result
     discovery_context.enumeration_context = enumeration_context
     return discovery_context.to_json()
 

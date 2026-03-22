@@ -29,7 +29,7 @@ def launch_pipeline(session_id: str, ctx: DiscoveryContext):
             task_whatweb.si(session_id, ctx_json),
             task_wappalyzer.si(session_id, ctx_json),
         ),
-        build_discovery_context.s(session_id, ctx_json)  # fires when all 4 finish
+        build_discovery_context.s(session_id)  # fires when all 4 finish
     )
 
     full_pipeline = chain(

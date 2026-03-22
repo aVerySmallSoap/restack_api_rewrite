@@ -57,7 +57,7 @@ class Subfinder(IScanner):
         Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
-            container = client.containers.get(session_id)
+            container = client.containers.get(f"{self._prefix}_{session_id}")
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:

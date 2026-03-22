@@ -5,10 +5,13 @@ from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.interfaces.base import IScanner
+from app.modules.interfaces.options import WhatWebContext
 
 
 class WhatWeb(IScanner):
-    _BASE_REPORT_PATH: str = f"{Path.cwd()}/app/reports/whatweb"
+    _base_report_path: str = f"{Path.cwd()}/app/reports/whatweb"
+    _prefix = "whatweb"
+    _scanner_context = WhatWebContext()
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         logger.info(f"Starting WhatWeb scan: {session_id}")
@@ -26,7 +29,7 @@ class WhatWeb(IScanner):
 
     def parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing WhatWeb results for session: {session_id}")
-        with open(f"{self._BASE_REPORT_PATH}/{session_id}.json") as f:
+        with open(f"{self._base_report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
                 print(line)
         # self._cleanup(session_id)
@@ -35,23 +38,23 @@ class WhatWeb(IScanner):
     def _cleanup(self, session_id: str) -> None:
         import docker
         logger.info("Cleaning up WhatWeb artifacts")
-        Path(f"{self._BASE_REPORT_PATH}/{session_id}.json").unlink(missing_ok=True)
+        Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
-            container = client.containers.get(session_id)
+            container = client.containers.get(f"{self._prefix}_{session_id}")
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Could not find container with ID: whatweb_{session_id}. Skipping cleanup")
+            logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
             pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker
-        logger.info(f"Spawning container: whatweb_{container_name}")
+        logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()
         return client.containers.run(
             image="localhost/whatweb",
-            name=f"whatweb_{container_name}",
+            name=f"{self._prefix}_{container_name}",
             command=[
                 "./whatweb",
                 "-a", "3",
@@ -59,7 +62,7 @@ class WhatWeb(IScanner):
                 ctx.primary_url
             ],
             volumes={
-                self._BASE_REPORT_PATH: {
+                self._base_report_path: {
                     "bind": "/reports/",
                     "mode": "rw",
                 }

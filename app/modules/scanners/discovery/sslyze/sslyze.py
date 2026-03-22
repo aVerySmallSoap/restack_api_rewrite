@@ -8,10 +8,13 @@ from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanne
 
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.interfaces.base import IScanner
+from modules.interfaces.options import SSLyzeContext
 
 
 class SSLyze(IScanner):
-    _BASE_REPORT_PATH: str = f"{Path.cwd()}/app/reports/sslyze"
+    _base_report_path: str = f"{Path.cwd()}/app/reports/sslyze"
+    _prefix = "sslyze"
+    _scanner_context = SSLyzeContext()
     _BASELINE_COMMANDS = {
         ScanCommand.CERTIFICATE_INFO,
         ScanCommand.SSL_2_0_CIPHER_SUITES,
@@ -61,7 +64,7 @@ class SSLyze(IScanner):
         )
 
         json_str = json_output.model_dump_json(indent=2)
-        Path(f"{self._BASE_REPORT_PATH}/{session_id}.json").write_text(json_str)
+        Path(f"{self._base_report_path}/{session_id}.json").write_text(json_str)
         return {}  # list of TLSFinding
 
     def parse_results(self, session_id: str) -> dict:

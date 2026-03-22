@@ -35,6 +35,7 @@ class SiteMap:
     collection: list[dict]
     map: dict[str, dict]
 
+@dataclass
 class EnumerationContext:
     #subfinder
     hosts: list = None

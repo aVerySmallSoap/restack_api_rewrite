@@ -5,10 +5,13 @@ from docker.models.containers import Container
 
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.interfaces.base import IScanner
+from app.modules.interfaces.options import WappalyzerContext
 
 
 class WappalyzerNext(IScanner):
-    _BASE_REPORT_PATH: str = f"{Path.cwd()}/app/reports/wappalyzer_next"
+    _base_report_path: str = f"{Path.cwd()}/app/reports/wappalyzer_next"
+    _prefix = "wappalyzer-next"
+    _scanner_context = WappalyzerContext()
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         logger.info(f"Starting Wappalyzer Next scan: {session_id}")
@@ -28,38 +31,39 @@ class WappalyzerNext(IScanner):
         import json
         logger.info(f"Parsing wappalyzer-next results for session: {session_id}")
         collection = {}
-        with open(f"{self._BASE_REPORT_PATH}/{session_id}.json") as f:
+        with open(f"{self._base_report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
                 collection.update(json.loads(line))
-        return collection
+        self._scanner_context.content = collection
+        return self._scanner_context.content
 
     def _cleanup(self, session_id: str) -> None:
         import docker
         logger.info("Cleaning up wappalyzer-next artifacts")
-        Path(f"{self._BASE_REPORT_PATH}/{session_id}.json").unlink(missing_ok=True) #TODO: might error out if a scan produces no files
+        Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True) #TODO: might error out if a scan produces no files
         client = docker.from_env()
         try:
-            container = client.containers.get(session_id)
+            container = client.containers.get(f"{self._prefix}_{session_id}")
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Could not find container with ID: wappalyzer_{session_id}. Skipping cleanup")
+            logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
             pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker
-        logger.info(f"Spawning container: wappalyzer_{container_name}")
+        logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()
         return client.containers.run(
             image="localhost/wappalyzer",
-            name=f"wappalyzer_{container_name}",
+            name=f"{self._prefix}_{container_name}",
             command=[
                 "--scan-type", "balanced",
                 "-oJ", f"/reports/{container_name}.json",
                 "-i", ctx.primary_url
             ],
             volumes={
-                self._BASE_REPORT_PATH: {
+                self._base_report_path: {
                     "bind": "/reports/",
                     "mode": "rw",
                 }
