@@ -23,11 +23,11 @@ class IScanner(ABC):
         pass
 
     @abstractmethod
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> BaseContext:
+    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         pass
 
     @abstractmethod
-    def parse_results(self, session_id: str) -> BaseContext:
+    def parse_results(self, session_id: str) -> dict:
         pass
 
     @abstractmethod

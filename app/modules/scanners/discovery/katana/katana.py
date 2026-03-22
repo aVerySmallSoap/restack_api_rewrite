@@ -18,7 +18,7 @@ class Katana(IScanner):
     _prefix_headless: str = "katana_headless"
     _scanner_context = KatanaContext()
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext, is_two_pass: bool = False) -> BaseContext:
+    def start_scan(self, session_id: str, ctx: DiscoveryContext, is_two_pass: bool = False) -> dict:
         logger.info(f"Starting Katana scan: {session_id}")
         # prepare headless just in case
         headless_container: Container | None = None
@@ -51,7 +51,7 @@ class Katana(IScanner):
                 raise RuntimeError(f"Katana container: {meta_container.get('container').name} exited abruptly!")
         return self.parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> BaseContext:
+    def parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing Katana results for session: {session_id}")
         collection: list[dict] = []
         hash_map: list[str] = []
@@ -83,15 +83,12 @@ class Katana(IScanner):
                 endpoints.add(json_line["request"].get("endpoint"))
                 collection.append(json_line)
         site_map = map_endpoints(endpoints)
-        # test output
-        with open(f"{self._base_report_path}/parsed_{session_id}.json", "w") as writable:
-            writable.write(json.dumps({"collection": collection, "site_map": site_map}, indent=4))
 
         self._scanner_context.content = {
             "collection": collection, "site_map": site_map
         }
         self._cleanup(session_id)
-        return self._scanner_context
+        return self._scanner_context.content
 
     def _cleanup(self, session_id: str) -> None:
         import docker

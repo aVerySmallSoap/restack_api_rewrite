@@ -35,13 +35,19 @@ class SiteMap:
     collection: list[dict]
     map: dict[str, dict]
 
+class EnumerationContext:
+    #subfinder
+    hosts: list = None
+    # katana
+    site_map: Optional[SiteMap] = None
+
 @dataclass
 class DiscoveryContext:
     session_id: str
     primary_url: str
     primary_host: str
+    enumeration_context: EnumerationContext = None
     auth_config: Optional[dict] = None
-    site_map: Optional[SiteMap] = None
 
     # Subfinder + httpx_scanner
     live_hosts: list[str] = field(default_factory=list)
@@ -49,7 +55,7 @@ class DiscoveryContext:
     open_ports: dict[str, list[int]] = field(default_factory=dict)
     # e.g {"example.com: [80,443]}
 
-    # WhatWeb + Wappalyzer + Httpx
+    # WhatWeb + Wappalyzer
     versioned_tech: list[TechEntry] = field(default_factory=list)
     nonversioned_tech: list[TechEntry] = field(default_factory=list)
 

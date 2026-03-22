@@ -32,7 +32,7 @@ class HttpxScanner(IScanner):
         container.remove()
         return self.parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> BaseContext:
+    def parse_results(self, session_id: str) -> dict:
         # TODO: The scanner involves some custom keys for different CMS', explore and add them later
         # Important keys: tls, tech, cpe
         logger.info(f"Parsing HTTPX results for session: {session_id}")
@@ -70,7 +70,7 @@ class HttpxScanner(IScanner):
             "tls": json_line.get("tls"),
         }
         self._cleanup(session_id)
-        return self._scanner_context
+        return self._scanner_context.content
 
     def _cleanup(self, session_id: str) -> None:
         import docker
@@ -78,7 +78,7 @@ class HttpxScanner(IScanner):
         Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
-            container = client.containers.get(session_id)
+            container = client.containers.get(f"{self._prefix}_{session_id}")
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:

@@ -4,7 +4,7 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.scanners.base import IScanner
+from app.modules.interfaces.base import IScanner
 
 
 class WhatWeb(IScanner):
@@ -42,19 +42,19 @@ class WhatWeb(IScanner):
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Could not find container with ID: {session_id}. Skipping cleanup")
+            logger.warning(f"Could not find container with ID: whatweb_{session_id}. Skipping cleanup")
             pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker
-        logger.info(f"Spawning container: {container_name}")
+        logger.info(f"Spawning container: whatweb_{container_name}")
         client = docker.from_env()
-        client.containers.run(
-            image="localhost/whatweb", #TODO: publish this image to docker.io
-            name=container_name,
+        return client.containers.run(
+            image="localhost/whatweb",
+            name=f"whatweb_{container_name}",
             command=[
                 "./whatweb",
-                "-a", "3"
+                "-a", "3",
                 "--log-json", f"/reports/{container_name}.json",
                 ctx.primary_url
             ],
@@ -65,5 +65,5 @@ class WhatWeb(IScanner):
                 }
             },
             detach=True,
+            auto_remove=False,
         )
-        return client.containers.get(container_name)

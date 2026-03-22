@@ -1,6 +1,7 @@
 import json
 
-from app.modules.pipeline.context import DiscoveryContext, TechEntry, BannerEntry, TLSFinding, SiteMap
+from app.modules.pipeline.context import DiscoveryContext, TechEntry, BannerEntry, TLSFinding, SiteMap, \
+    EnumerationContext
 from app.modules.scanners.discovery.subfinder.subfinder import Subfinder
 from app.modules.scanners.discovery.httpx_scanner.httpxscanner import HttpxScanner
 from app.modules.scanners.discovery.sslyze.sslyze import SSLyze
@@ -8,7 +9,6 @@ from app.modules.scanners.discovery.whatweb.whatweb import WhatWeb
 from app.modules.scanners.discovery.wappalyzer_next.wappalyzer_next import WappalyzerNext
 from app.modules.scanners.discovery.katana.katana import Katana
 from app.modules.celery_app import celery_app
-from app.modules.interfaces.options import KatanaContext
 
 
 @celery_app.task(bind=True)
@@ -17,10 +17,10 @@ def task_subfinder(self, session_id: str, ctx_json: str) -> dict:
     return {"type": "subfinder", "result": Subfinder().start_scan(session_id, ctx)}
 
 @celery_app.task(bind=True)
-def task_katana(self, session_id:str, ctx_json: str, katana_context: str) -> dict:
+def task_katana(self, session_id:str, ctx_json: str) -> dict:
     ctx = DiscoveryContext(**json.loads(ctx_json))
-    opts = KatanaContext(**json.loads(katana_context)) # TODO: Find a better way to build different contexts
-    return {"type": "katana", "result": Katana().start_scan(session_id, ctx, opts)}
+    # TODO: is false for now. The is_two_pass argument will come from the request.
+    return {"type": "katana", "result": Katana().start_scan(session_id, ctx, False)}
 
 @celery_app.task(bind=True)
 def task_httpx(self, session_id: str, ctx_json: str) -> dict:
@@ -51,51 +51,55 @@ def build_discovery_context(self, results: list[dict], session_id: str, ctx_json
     Returns ctx_json for the next phase in the chain.
     """
     ctx = DiscoveryContext(**json.loads(ctx_json))
+    print(f"Enumeration Context type of site_map: {type(ctx.enumeration_context.site_map)}.")
 
     for item in results:
+        result: dict = item["result"]
+        if item["result"] is None or item["result"].values() == {}:
+            continue
         match item["type"]:
-            case "subfinder":
-                # item["result"] is {host: {hosts: [...], sources: {...}}}
-                if item["result"] is None or item["result"].values() == {}:
-                    continue
-                for host_data in item["result"].values():
-                    ctx.live_hosts.extend(host_data.get("hosts", []))
-
             case "httpx":
-                if item["result"] is None or item["result"].values() == {}:
-                    continue
-                for host, banner_data in item["result"].get("banners", {}).items():
+                print(result)
+                for host, banner_data in result.get("banners", {}).items():
                     ctx.banners[host] = BannerEntry(**banner_data)
-                ctx.has_https = item["result"].get("has_https", False)
+                ctx.has_https = result.get("has_https", False)
 
             case "sslyze":
-                if item["result"] is None or item["result"].values() == {}:
-                    continue
-                for finding in item["result"].get("tls_findings", []):
+                for finding in result.get("tls_findings", []):
                     ctx.tls_findings.append(TLSFinding(**finding))
 
             case "whatweb" | "wappalyzer":
-                if item["result"] is None or item["result"].values() == {}:
-                    continue
-                for tech in item["result"].get("versioned", []):
+                for tech in result.get("versioned", []):
                     ctx.versioned_tech.append(TechEntry(**tech))
-                for tech in item["result"].get("nonversioned", []):
+                for tech in result.get("nonversioned", []):
                     ctx.nonversioned_tech.append(TechEntry(**tech))
 
-            case "katana":
-                if item["result"] is None or item["result"].values() == {}:
-                    continue
-                ctx.site_map = SiteMap(
-                    collection=item["result"].get("collection", []),
-                    map=item["result"].get("site_map", {})
-                )
-
     # Derive nuclei tags from detected tech before saving
-    ctx.nuclei_tags = _derive_nuclei_tags(ctx)
-    ctx.save_to_redis()
+    # ctx.nuclei_tags = _derive_nuclei_tags(ctx)
+    # ctx.save_to_redis()
 
     return ctx.to_json()  # passed into Phase 2 chain
 
+@celery_app.task(bind=True)
+def build_enumeration_context(self, results: list[dict], session_id: str, ctx_json: str) -> str:
+    discovery_context = DiscoveryContext(**json.loads(ctx_json))
+    enumeration_context = EnumerationContext()
+
+    for item in results:
+        result: dict = item["result"]
+        if result is None or result.values() == {}:
+            continue
+        match item["type"]:
+            case "subfinder":
+                enumeration_context.hosts = result[discovery_context.primary_host].get("hosts", [])
+            case "katana":
+                enumeration_context.site_map = SiteMap(
+                    collection=result.get("collection", []),
+                    map=result.get("site_map", {})
+                )
+                enumeration_context.versioned_tech = result
+    discovery_context.enumeration_context = enumeration_context
+    return discovery_context.to_json()
 
 def _derive_nuclei_tags(ctx: DiscoveryContext) -> list[str]:
     """Build nuclei tag list from discovered tech — drives Phase 2 targeting."""

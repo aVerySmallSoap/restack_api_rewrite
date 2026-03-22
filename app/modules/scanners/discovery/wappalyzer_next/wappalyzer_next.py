@@ -4,7 +4,7 @@ from loguru import logger
 from docker.models.containers import Container
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.scanners.base import IScanner
+from app.modules.interfaces.base import IScanner
 
 
 class WappalyzerNext(IScanner):
@@ -25,12 +25,13 @@ class WappalyzerNext(IScanner):
         return self.parse_results(session_id)
 
     def parse_results(self, session_id: str) -> dict:
-        # TODO: write a parser to json
+        import json
         logger.info(f"Parsing wappalyzer-next results for session: {session_id}")
+        collection = {}
         with open(f"{self._BASE_REPORT_PATH}/{session_id}.json") as f:
             for line in f.read().splitlines():
-                print(line)
-        return {}
+                collection.update(json.loads(line))
+        return collection
 
     def _cleanup(self, session_id: str) -> None:
         import docker
@@ -42,16 +43,16 @@ class WappalyzerNext(IScanner):
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Could not find container with ID: {session_id}. Skipping cleanup")
+            logger.warning(f"Could not find container with ID: wappalyzer_{session_id}. Skipping cleanup")
             pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker
-        logger.info(f"Spawning container: {container_name}")
+        logger.info(f"Spawning container: wappalyzer_{container_name}")
         client = docker.from_env()
-        client.containers.run(
-            image="localhost/wappalyzer",  # TODO: publish this image to docker.io
-            name=container_name,
+        return client.containers.run(
+            image="localhost/wappalyzer",
+            name=f"wappalyzer_{container_name}",
             command=[
                 "--scan-type", "balanced",
                 "-oJ", f"/reports/{container_name}.json",
@@ -64,5 +65,5 @@ class WappalyzerNext(IScanner):
                 }
             },
             detach=True,
+            auto_remove=False,
         )
-        return client.containers.get(container_name)

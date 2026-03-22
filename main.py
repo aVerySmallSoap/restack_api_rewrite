@@ -16,12 +16,12 @@ from app.modules.scanners.discovery.katana.katana import Katana
 from app.modules.tasks.pipeline import launch_pipeline
 
 # Injectables
-httpx_scanner = HttpxScanner()
-# subfinder = Subfinder()
+subfinder = Subfinder()
+katana = Katana()
+# httpx_scanner = HttpxScanner()
 # whatweb = WhatWeb()
 # sslyze = SSLyze()
 # wappalyzer_next = WappalyzerNext()
-# katana = Katana()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,7 +38,7 @@ async def root():
     session_id: str = str(uuid.uuid4())
     target = "https://dnsc.edu.ph"
     ctx: DiscoveryContext = DiscoveryContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc)
-    httpx_scanner.start_scan(session_id, ctx)
+    # httpx_scanner.start_scan(session_id, ctx)
     # subfinder.start_scan(session_id, ctx)
     # whatweb.start_scan(session_id, ctx)
     # sslyze.start_scan(session_id, ctx)
