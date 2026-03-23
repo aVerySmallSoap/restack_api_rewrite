@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     # call and check docker images. Check if there is any updates
     logger.add("./app/logs/{time}.log", rotation="1 day", compression="zip")
     logger.info("Starting server")
-    await check_and_update_images()
+    check_and_update_images()
     yield
 
 app = FastAPI(lifespan=lifespan)

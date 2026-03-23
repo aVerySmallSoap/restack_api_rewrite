@@ -8,7 +8,7 @@ from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanne
 
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.interfaces.base import IScanner
-from modules.interfaces.options import SSLyzeContext
+from app.modules.interfaces.options import SSLyzeContext
 
 
 class SSLyze(IScanner):

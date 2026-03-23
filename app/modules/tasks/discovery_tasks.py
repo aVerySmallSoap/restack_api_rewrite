@@ -44,14 +44,14 @@ def task_wappalyzer(self, session_id: str, ctx_json: str) -> dict:
 
 
 @celery_app.task(bind=True)
-def build_discovery_context(self, updated_ctx: str, results: list[dict], session_id: str) -> str:
+def build_discovery_context(self, results: list[dict], updated_ctx: str) -> str:
     """
     Chord callback — fires after all Phase 1 tasks finish.
     Merges all scanner results into DiscoveryContext and saves to Redis.
     Returns ctx_json for the next phase in the chain.
     """
     ctx = DiscoveryContext(**json.loads(updated_ctx))
-    print(f"Enumeration Context type of site_map: {type(ctx.enumeration_context.site_map)}.")
+    print(f"Enumeration Context type of site_map: {type(ctx.enumeration_context.site_map.map)}.")
 
     for item in results:
         result: dict = item["result"]
@@ -79,6 +79,24 @@ def build_discovery_context(self, updated_ctx: str, results: list[dict], session
     # ctx.save_to_redis()
 
     return ctx.to_json()  # passed into Phase 2 chain
+
+@celery_app.task(bind=True)
+def launch_discovery_phase(self, updated_ctx_json: str, session_id: str):
+    """
+    Bridge task — receives updated ctx_json from enumeration phase,
+    then launches the discovery chord with it.
+    """
+    from celery import chord, group
+    discovery_chord = chord(
+        group(
+            task_httpx.s(session_id, updated_ctx_json),
+            task_sslyze.s(session_id, updated_ctx_json),
+            task_whatweb.s(session_id, updated_ctx_json),
+            task_wappalyzer.s(session_id, updated_ctx_json),
+        ),
+        build_discovery_context.s(updated_ctx_json),
+    )
+    return discovery_chord.delay()
 
 @celery_app.task(bind=True)
 def build_enumeration_context(self, results: list[dict], session_id: str, ctx_json: str) -> str:

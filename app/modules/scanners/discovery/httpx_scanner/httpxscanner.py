@@ -63,8 +63,8 @@ class HttpxScanner(IScanner):
         # after everything is done, store it on content
         self._scanner_context.content = {
             "technologies": {
-                "versioned": versioned_tech,
-                "non_versioned": non_versioned_tech
+                "versioned": [t.__dict__ for t in versioned_tech],
+                "non_versioned": [t.__dict__ for t in non_versioned_tech]
             },
             "cpe": json_line.get("cpe"),
             "tls": json_line.get("tls"),

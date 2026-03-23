@@ -6,6 +6,7 @@ from app.modules.tasks.discovery_tasks import (
 )
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.tasks.discovery_tasks import task_katana
+from app.modules.tasks.discovery_tasks import launch_discovery_phase
 
 
 # from app.modules.tasks.scanning_tasks import ... (Phase 2, future)
@@ -22,19 +23,9 @@ def launch_pipeline(session_id: str, ctx: DiscoveryContext):
         build_enumeration_context.s(session_id, ctx_json),
     )
 
-    discovery_chord = chord(
-        group(
-            task_httpx.si(session_id, ctx_json),
-            task_sslyze.si(session_id, ctx_json),
-            task_whatweb.si(session_id, ctx_json),
-            task_wappalyzer.si(session_id, ctx_json),
-        ),
-        build_discovery_context.s(session_id)  # fires when all 4 finish
-    )
-
     full_pipeline = chain(
         enumeration_chord,
-        discovery_chord
+        launch_discovery_phase.s(session_id)
     )
 
     # When Phase 2 exists, you'd do:
