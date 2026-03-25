@@ -84,10 +84,15 @@ class Katana(IScanner):
                 collection.append(json_line)
         site_map = map_endpoints(endpoints)
 
+        # test line
+        with open(f"{self._base_report_path}/site_map_{session_id}.json", "w") as f:
+            f.write(json.dumps(site_map))
+        # end test
+
         self._scanner_context.content = {
             "collection": collection, "site_map": site_map
         }
-        self._cleanup(session_id)
+        # self._cleanup(session_id)
         return self._scanner_context.content
 
     def _cleanup(self, session_id: str) -> None:

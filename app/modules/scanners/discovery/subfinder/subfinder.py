@@ -48,7 +48,7 @@ class Subfinder(IScanner):
                 "sources": list(sources)
             }
         }
-        self._cleanup(session_id)
+        # self._cleanup(session_id)
         return self._scanner_context.content
 
     def _cleanup(self, session_id: str) -> None:
