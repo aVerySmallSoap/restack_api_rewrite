@@ -6,17 +6,20 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.interfaces.base import IScanner
+from app.modules.interfaces.base import IHeadlessScanner
 from app.modules.utils.utils import map_endpoints
-from app.modules.interfaces.options import KatanaContext, BaseContext
+from app.modules.interfaces.options import KatanaContext
 from app.modules.utils.utils import is_same_host
 
 
-class Katana(IScanner):
+class Katana(IHeadlessScanner):
     _base_report_path: str = f"{Path.cwd()}/app/reports/katana"
     _prefix: str = "katana"
     _prefix_headless: str = "katana_headless"
-    _scanner_context = KatanaContext()
+    _scanner_context: KatanaContext
+
+    def __init__(self):
+        self._scanner_context = KatanaContext()
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext, is_two_pass: bool = False) -> dict:
         logger.info(f"Starting Katana scan: {session_id}")

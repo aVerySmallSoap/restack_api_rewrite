@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from docker.models.containers import Container
 from loguru import logger
 from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanner, SslyzeOutputAsJson, \
     ServerScanResultAsJson
@@ -71,7 +70,4 @@ class SSLyze(IScanner):
         pass
 
     def _cleanup(self, session_id: str) -> None:
-        pass
-
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         pass

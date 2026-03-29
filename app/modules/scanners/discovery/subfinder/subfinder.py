@@ -5,15 +5,17 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.interfaces.base import IScanner
+from app.modules.interfaces.base import IContainerScanner
 from app.modules.interfaces.options import SubfinderContext
-from app.modules.interfaces.options import BaseContext
 
 
-class Subfinder(IScanner):
+class Subfinder(IContainerScanner):
     _base_report_path: str = f"{Path.cwd()}/app/reports/subfinder"
     _prefix: str = "subfinder"
-    _scanner_context: BaseContext = SubfinderContext()
+    _scanner_context: SubfinderContext
+
+    def __init__(self):
+        self._scanner_context = SubfinderContext()
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         logger.info(f"Starting Subfinder scan: {session_id}")

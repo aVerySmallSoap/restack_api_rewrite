@@ -52,8 +52,9 @@ class IContainerScanner(IScanner):
         """
         pass
 
+class IHeadlessScanner(IContainerScanner):
     @abstractmethod
-    def _headless_spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn_headless(self, container_name: str, ctx: DiscoveryContext) -> Container:
         """
         Spawns and runs a docker container associated with the scanner.
         This function should be implemented by the subclass when the scanner supports a headless mode.

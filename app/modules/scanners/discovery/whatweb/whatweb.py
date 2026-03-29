@@ -4,14 +4,17 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.interfaces.base import IScanner
 from app.modules.interfaces.options import WhatWebContext
+from app.modules.interfaces.base import IHeadlessScanner
 
 
-class WhatWeb(IScanner):
+class WhatWeb(IHeadlessScanner):
     _base_report_path: str = f"{Path.cwd()}/app/reports/whatweb"
     _prefix = "whatweb"
-    _scanner_context = WhatWebContext()
+    _scanner_context: WhatWebContext
+
+    def __init__(self):
+        self._scanner_context = WhatWebContext()
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         logger.info(f"Starting WhatWeb scan: {session_id}")
@@ -70,3 +73,6 @@ class WhatWeb(IScanner):
             detach=True,
             auto_remove=False,
         )
+
+    def _spawn_headless(self, container_name: str, ctx: DiscoveryContext) -> Container:
+        pass

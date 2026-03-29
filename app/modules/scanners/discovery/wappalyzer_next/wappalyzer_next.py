@@ -4,15 +4,18 @@ from loguru import logger
 from docker.models.containers import Container
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.interfaces.base import IScanner
+from app.modules.interfaces.base import IHeadlessScanner
 from app.modules.interfaces.options import WappalyzerContext
 
 
-class WappalyzerNext(IScanner):
-    _base_report_path: str = f"{Path.cwd()}/app/reports/wappalyzer_next"
+class WappalyzerNext(IHeadlessScanner):
+    _base_report_path = f"{Path.cwd()}/app/reports/wappalyzer_next"
     _prefix = "wappalyzer-next"
     _prefix_headless = "wappalyzer-next_headless"
-    _scanner_context = WappalyzerContext()
+    _scanner_context: WappalyzerContext
+
+    def __init__(self):
+        self._scanner_context = WappalyzerContext()
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         logger.info(f"Starting Wappalyzer Next scan: {session_id}")
