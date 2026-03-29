@@ -5,12 +5,13 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.interfaces.base import IScanner
+from app.modules.interfaces.base import IContainerScanner
 from app.modules.interfaces.options import BaseContext, HttpxContext
 from app.modules.pipeline.context import TechEntry
 
 
-class HttpxScanner(IScanner):
+class HttpxScanner(IContainerScanner):
+
     #TODO: httpx can run multiple requests on several endpoints at the same time
     # Might be better to first launch subfinder then pipe its results to scanners.
     _base_report_path: str = f"{Path.cwd()}/app/reports/httpx"
@@ -120,3 +121,6 @@ class HttpxScanner(IScanner):
             detach=True,
             auto_remove=False,
         )
+
+    def _headless_spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+        pass
