@@ -1,8 +1,6 @@
 from celery import chain, chord, group
 from app.modules.tasks.discovery_tasks import (
-    task_subfinder, task_httpx, task_sslyze,
-    task_whatweb, task_wappalyzer,
-    build_discovery_context, build_enumeration_context
+    task_subfinder, build_enumeration_context
 )
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.tasks.discovery_tasks import task_katana

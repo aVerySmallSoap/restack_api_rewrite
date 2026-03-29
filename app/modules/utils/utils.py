@@ -1,6 +1,3 @@
-from urllib.parse import ParseResult
-
-
 def read_required_images() -> list[str]:
     from loguru import logger
     collection: list[str] = []

@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 
 from docker.models.containers import Container
 
-from app.modules.pipeline.context import DiscoveryContext
 from app.modules.interfaces.options import BaseContext
 
 # === Scanner Interfaces ===
@@ -24,7 +23,7 @@ class IScanner(ABC):
         pass
 
     @abstractmethod
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: BaseContext) -> dict:
         pass
 
     @abstractmethod
@@ -43,7 +42,7 @@ class IScanner(ABC):
 
 class IContainerScanner(IScanner):
     @abstractmethod
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn(self, container_name: str, ctx: BaseContext) -> Container:
         """
         Spawns and runs a docker container associated with the scanner.
         :param container_name: Name of the container
@@ -54,7 +53,7 @@ class IContainerScanner(IScanner):
 
 class IHeadlessScanner(IContainerScanner):
     @abstractmethod
-    def _spawn_headless(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn_headless(self, container_name: str, ctx: BaseContext) -> Container:
         """
         Spawns and runs a docker container associated with the scanner.
         This function should be implemented by the subclass when the scanner supports a headless mode.

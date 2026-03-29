@@ -3,8 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from app.modules.interfaces.enums.wapiti.wapiti_enums import WapitiAuthMethodValues, WapitiHeadlessValues, \
-    WapitiVerifySSLValues, WapitiScanForceValues, WapitiModulesValues, WapitiScopeValues
+from app.modules.scanners.web.wapiti.wapiti_enums import WapitiScopeValues, WapitiModulesValues, WapitiScanForceValues, \
+    WapitiVerifySSLValues, WapitiHeadlessValues, WapitiAuthMethodValues
 
 
 class WapitiConfig(BaseModel):
@@ -23,7 +23,7 @@ class WapitiConfig(BaseModel):
     colored: bool                                                   = False
     verbose: bool                                                   = True
     format: str                                                     = "json"
-    output: str                                                     = None
+    output: str                                                     = ""
     detailed_report: int                                            = 1
 
     # mostly important optionals
@@ -48,12 +48,6 @@ class WapitiConfig(BaseModel):
     side_file: Optional[str]                                        = None # path
     cookie: Optional[str]                                           = None # should accept dict then resolved to a string
     drop_set_cookie: Optional[bool]                                 = None
-
-    # scanner control !NOT USED!
-    skip_crawl: Optional[bool]                                      = None
-    resume_crawl: Optional[bool]                                    = None
-    store_session: Optional[str]                                    = None # path
-    store_config: Optional[str]                                     = None # path
 
     # URL control
     start: Optional[str]                                            = None # URL

@@ -4,6 +4,8 @@ from typing import Optional
 
 import redis
 
+from app.modules.interfaces.options import BaseContext
+
 redis_client = redis.Redis.from_url(url="redis://localhost:6379")
 
 @dataclass
@@ -38,16 +40,16 @@ class SiteMap:
 @dataclass
 class EnumerationContext:
     #subfinder
-    hosts: list = None
+    hosts: list = field(default_factory=list)
     # katana
     site_map: Optional[SiteMap] = None
 
 @dataclass
-class DiscoveryContext:
+class DiscoveryContext(BaseContext):
     session_id: str
     primary_url: str
     primary_host: str
-    enumeration_context: EnumerationContext = None
+    enumeration_context: Optional[EnumerationContext] = None
     auth_config: Optional[dict] = None
 
     # Subfinder + httpx_scanner

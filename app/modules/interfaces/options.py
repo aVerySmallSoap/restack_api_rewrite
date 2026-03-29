@@ -1,14 +1,11 @@
-from abc import ABC, abstractmethod
 from typing import Optional
 
 from pydantic import BaseModel
 
-
 class BaseContext(BaseModel):
     # Each scanner shall contain a context that holds its own scan data
     # These contexts can be passed to context discovery to be parsed
-    session_id: str = None
-    content: dict = None
+    session_id: Optional[str] = None
 
     def to_json(self) -> str:
         return self.model_dump_json()
@@ -16,24 +13,28 @@ class BaseContext(BaseModel):
     def to_dict(self, ctx: str):
         return self.model_validate_json(ctx)
 
+class ContentableContext(BaseContext):
+    content: Optional[dict] = None
 
-class SubfinderContext(BaseContext):
+# Discovery options/contexts
+
+class SubfinderContext(ContentableContext):
     pass
 
-class KatanaContext(BaseContext):
+class KatanaContext(ContentableContext):
     """ This is the context needed for Katana."""
     is_two_pass: bool = False
     primary_host: Optional[str] = None
     headless_chrome_binary: str = "/usr/bin/chromium"
 
-class HttpxContext(BaseContext):
+class HttpxContext(ContentableContext):
     pass
 
-class SSLyzeContext(BaseContext):
+class SSLyzeContext(ContentableContext):
     pass
 
-class WappalyzerContext(BaseContext):
+class WappalyzerContext(ContentableContext):
     pass
 
-class WhatWebContext(BaseContext):
+class WhatWebContext(ContentableContext):
     pass

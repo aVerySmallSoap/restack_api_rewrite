@@ -36,7 +36,7 @@ class WhatWeb(IHeadlessScanner):
             for line in f.read().splitlines():
                 print(line)
         # self._cleanup(session_id)
-        pass
+        return {}
 
     def _cleanup(self, session_id: str) -> None:
         import docker
