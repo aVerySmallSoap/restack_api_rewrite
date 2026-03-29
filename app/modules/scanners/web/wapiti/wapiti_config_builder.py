@@ -1,10 +1,11 @@
 from app.modules.interfaces.base import IConfigBuilder
 from app.modules.scanners.web.wapiti.wapiti_types import WapitiFlagDefinition, WapitiConfig
+from app.modules.scanners.web.wapiti.wapiti_enums import WapitiHeadlessValues
 
 # This should help the code map the correct command to the value
 COMMAND_MAPPING: dict[str, WapitiFlagDefinition] = {
     "scope": WapitiFlagDefinition("--scope", True),
-    "modules": WapitiFlagDefinition("--modules", True),
+    "modules": WapitiFlagDefinition("-m", True),
     "level": WapitiFlagDefinition("--level", True),
     "flush_attacks": WapitiFlagDefinition("--flush-attacks", False),
     "flush_session": WapitiFlagDefinition("--flush-session", False),
@@ -15,12 +16,12 @@ COMMAND_MAPPING: dict[str, WapitiFlagDefinition] = {
     "tasks": WapitiFlagDefinition("--tasks", True),
     "timeout": WapitiFlagDefinition("--timeout", True),
     "verify_ssl": WapitiFlagDefinition("--verify-ssl", True),
-    "colored": WapitiFlagDefinition("--color", True),
+    "colored": WapitiFlagDefinition("--color", False),
     "verbose": WapitiFlagDefinition("--verbose", True),
     "format": WapitiFlagDefinition("--format", True),
     "output": WapitiFlagDefinition("--output", True),
     "detailed_report": WapitiFlagDefinition("--detailed-report", True),
-    "tor": WapitiFlagDefinition("--tor", True),
+    "tor": WapitiFlagDefinition("--tor", False),
     "mitm_port": WapitiFlagDefinition("--mitm-port", True),
     "headless": WapitiFlagDefinition("--headless", True),
     "wait": WapitiFlagDefinition("--wait", True),
@@ -73,6 +74,9 @@ class WapitiConfigBuilder(IConfigBuilder):
         command = ["wapiti", "-u", self._url]
 
         for field_name, value in self._config.model_dump().items():
+            if field_name == "is_headless" and value:
+                    self._config.headless = WapitiHeadlessValues.HIDDEN
+
             if value is None:
                 continue
             flag_def = COMMAND_MAPPING.get(field_name)
@@ -83,5 +87,5 @@ class WapitiConfigBuilder(IConfigBuilder):
             else:
                 if value:  # only append boolean flags when True
                     command.append(flag_def.flag)
-
+        print(command)
         return command

@@ -7,20 +7,9 @@ from app.modules.interfaces.options import BaseContext
 # === Scanner Interfaces ===
 
 class IScanner(ABC):
-    @property
-    @abstractmethod
-    def _base_report_path(self) -> str:
-        pass
-
-    @property
-    @abstractmethod
-    def _prefix(self) -> str:
-        pass
-
-    @property
-    @abstractmethod
-    def _scanner_context(self) -> BaseContext:
-        pass
+    _base_report_path: str
+    _prefix: str
+    _scanner_context: BaseContext
 
     @abstractmethod
     def start_scan(self, session_id: str, ctx: BaseContext) -> dict:

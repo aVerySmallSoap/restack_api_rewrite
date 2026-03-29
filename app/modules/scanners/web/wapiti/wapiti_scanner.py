@@ -23,11 +23,11 @@ class WapitiScanner(IScanner):
         # build
         commands: list = (self._builder
                           .url(ctx.primary_url)
-                          .output(self._base_report_path)
+                          .output(f"{self._base_report_path}/{session_id}.json")
                           .build())
-        # run
+        # runE
         try:
-            process = subprocess.Popen(commands, creationflags=(subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW))
+            process = subprocess.Popen(commands)
             process.wait()
             if process.returncode != 0:
                 raise subprocess.SubprocessError

@@ -8,29 +8,32 @@ from app.modules.scanners.web.wapiti.wapiti_enums import WapitiScopeValues, Wapi
 
 
 class WapitiConfig(BaseModel):
+    is_headless:bool                                                = False
+
+    # Wapiti flags/commands
     scope: WapitiScopeValues                                        = WapitiScopeValues.DOMAIN
-    modules: WapitiModulesValues | list[WapitiModulesValues]        = WapitiModulesValues.COMMON
+    modules: WapitiModulesValues | list[WapitiModulesValues]        = WapitiModulesValues.ALL
     level: int                                                      = 1 # 1 or 2
     flush_attacks: bool                                             = True
     flush_session: bool                                             = True
-    depth: int                                                      = -1
-    max_scan_time: int                                              = 180
-    max_attack_time: int                                            = 280
-    force: WapitiScanForceValues                                    = WapitiScanForceValues.SNEAKY
+    depth: int                                                      = 50
+    max_scan_time: int                                              = 360
+    max_attack_time: int                                            = 360
+    force: WapitiScanForceValues                                    = WapitiScanForceValues.NORMAL
     tasks: int                                                      = 4
     timeout: int                                                    = 15
     verify_ssl: WapitiVerifySSLValues                               = WapitiVerifySSLValues.YES
     colored: bool                                                   = False
-    verbose: bool                                                   = True
+    verbose: bool                                                   = 2
     format: str                                                     = "json"
     output: str                                                     = ""
     detailed_report: int                                            = 1
 
     # mostly important optionals
-    tor: Optional[bool]                                             = False
-    mitm_port: Optional[int]                                        = 80
-    headless: Optional[WapitiHeadlessValues]                        = WapitiHeadlessValues.HIDDEN
-    wait: Optional[int]                                             = 10
+    tor: Optional[bool]                                             = None
+    mitm_port: Optional[int]                                        = None
+    headless: Optional[WapitiHeadlessValues]                        = None
+    wait: Optional[int]                                             = None
 
     # optionals
 

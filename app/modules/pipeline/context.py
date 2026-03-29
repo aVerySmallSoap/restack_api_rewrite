@@ -45,7 +45,7 @@ class EnumerationContext:
     site_map: Optional[SiteMap] = None
 
 @dataclass
-class DiscoveryContext(BaseContext):
+class DiscoveryContext:
     session_id: str
     primary_url: str
     primary_host: str
