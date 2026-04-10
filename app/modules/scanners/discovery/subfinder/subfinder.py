@@ -64,7 +64,6 @@ class Subfinder(IContainerScanner):
             container.remove()
         except docker.errors.NotFound:
             logger.warning(f"Could not find container with ID: subfinder_{session_id}. Skipping cleanup")
-            pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker

@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from app.modules.scanners.web.wapiti.wapiti_enums import WapitiScopeValues, WapitiModulesValues, WapitiScanForceValues, \
     WapitiVerifySSLValues, WapitiHeadlessValues, WapitiAuthMethodValues
 
-
 class WapitiConfig(BaseModel):
     is_headless:bool                                                = False
 
@@ -34,8 +33,6 @@ class WapitiConfig(BaseModel):
     mitm_port: Optional[int]                                        = None
     headless: Optional[WapitiHeadlessValues]                        = None
     wait: Optional[int]                                             = None
-
-    # optionals
 
     # auth
     auth_user: Optional[str]                                        = None

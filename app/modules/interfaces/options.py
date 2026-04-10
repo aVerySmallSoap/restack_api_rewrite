@@ -21,12 +21,6 @@ class ContentableContext(BaseContext):
 class SubfinderContext(ContentableContext):
     pass
 
-class KatanaContext(ContentableContext):
-    """ This is the context needed for Katana."""
-    is_two_pass: bool = False
-    primary_host: Optional[str] = None
-    headless_chrome_binary: str = "/usr/bin/chromium"
-
 class HttpxContext(ContentableContext):
     pass
 
@@ -38,3 +32,4 @@ class WappalyzerContext(ContentableContext):
 
 class WhatWebContext(ContentableContext):
     pass
+

@@ -1,4 +1,7 @@
 logs/*
 reports/*
-app/config/.env
+.env
 .venv/
+app/templates/nuclei
+app/templates/zap
+.idea

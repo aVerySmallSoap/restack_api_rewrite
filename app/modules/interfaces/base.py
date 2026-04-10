@@ -7,6 +7,17 @@ from app.modules.interfaces.options import BaseContext
 # === Scanner Interfaces ===
 
 class IScanner(ABC):
+    """
+    Base scanner interface.
+
+    This interface can be implemented to derive custom scanner behavior;
+    see IContainerScanner and IHeadlessScanner.
+
+    In some cases, there maybe scanners that interact with a single container
+    that is spawned on startup; see ZapScanner.
+    If so, you should implement this interface instead of IContainerScanner or its
+    implementors.
+    """
     _base_report_path: str
     _prefix: str
     _scanner_context: BaseContext
@@ -30,6 +41,8 @@ class IScanner(ABC):
         pass
 
 class IContainerScanner(IScanner):
+    """This interface should be used implemented by scanners that spawn docker containers."""
+
     @abstractmethod
     def _spawn(self, container_name: str, ctx: BaseContext) -> Container:
         """
@@ -41,6 +54,8 @@ class IContainerScanner(IScanner):
         pass
 
 class IHeadlessScanner(IContainerScanner):
+    """This interface should be used implemented by scanners that spawn docker containers that may be headless."""
+
     @abstractmethod
     def _spawn_headless(self, container_name: str, ctx: BaseContext) -> Container:
         """
@@ -56,11 +71,11 @@ class IHeadlessScanner(IContainerScanner):
 
 class INormalizer(ABC):
     @abstractmethod
-    def normalize(self, data: dict) -> dict:
+    def normalize(self, data: any) -> dict:
         """
         Normalizes the data to a specific structure.
         :param data: Data to be normalized
-        :return: data normalized in json format
+        :return: data normalized in JSON format
         """
         pass
 

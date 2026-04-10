@@ -7,3 +7,4 @@ loguru
 celery
 wapiti3
 pydantic
+zaproxy

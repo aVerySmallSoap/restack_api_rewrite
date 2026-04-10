@@ -49,7 +49,6 @@ class WhatWeb(IHeadlessScanner):
             container.remove()
         except docker.errors.NotFound:
             logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
-            pass
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker

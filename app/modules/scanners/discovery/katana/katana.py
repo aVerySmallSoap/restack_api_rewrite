@@ -8,8 +8,8 @@ from loguru import logger
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.interfaces.base import IHeadlessScanner
 from app.modules.utils.utils import map_endpoints
-from app.modules.interfaces.options import KatanaContext
 from app.modules.utils.utils import is_same_host
+from app.modules.scanners.discovery.katana.katana_context import KatanaContext
 
 
 class Katana(IHeadlessScanner):
@@ -68,7 +68,7 @@ class Katana(IHeadlessScanner):
                     json_line = json.loads(line)
                     if not is_same_host(self._scanner_context.primary_host, json_line["request"].get("endpoint")):
                         # TODO: store this on another set/collection that contains out-of-scope endpoints
-                        print(f"We hit something interesting!")
+                        print("We hit something interesting!")
                         continue
                     line_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
                     hash_map.append(line_hash)
@@ -116,7 +116,7 @@ class Katana(IHeadlessScanner):
                 headless_container.stop(timeout=5)
                 headless_container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Containers could not be found! Skipping cleanup...")
+            logger.warning("Containers could not be found! Skipping cleanup...")
             return
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:

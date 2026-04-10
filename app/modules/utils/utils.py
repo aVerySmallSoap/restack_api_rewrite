@@ -2,7 +2,7 @@ def read_required_images() -> list[str]:
     from loguru import logger
     collection: list[str] = []
     try:
-        with open("./app/templates/docker/docker_images", "r") as f:
+        with open("./app/config/docker/docker_images", "r") as f:
             for line in f.read().splitlines():
                 collection.append(line)
     except FileNotFoundError:
