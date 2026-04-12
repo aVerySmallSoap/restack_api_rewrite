@@ -66,7 +66,7 @@ class SSLyze(IScanner):
         Path(f"{self._base_report_path}/{session_id}.json").write_text(json_str)
         return {}  # list of TLSFinding
 
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         pass
 
     def _cleanup(self, session_id: str) -> None:

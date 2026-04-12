@@ -36,9 +36,9 @@ class WappalyzerNext(IHeadlessScanner):
             raise RuntimeError(f"Wappalyzer-next headless failed with exit code {exit_code}")
         container.remove()
         headless_container.remove()
-        return self.parse_results(session_id)
+        return self._parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         import json
         logger.info(f"Parsing wappalyzer-next results for session: {session_id}")
         collection = {}

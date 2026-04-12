@@ -11,6 +11,8 @@ from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_z
 from app.modules.tasks.pipeline import launch_pipeline
 from app.modules.scanners.web.nuclei.nuclei import Nuclei
 from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
+from app.modules.scanners.web.zap.zap_scanner import ZapScanner
+from app.modules.scanners.discovery.naabu.naabu import Naabu
 
 
 @asynccontextmanager
@@ -32,12 +34,13 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/")
 async def root():
     session_id: str = str(uuid.uuid4())
-    target = "http://localhost/vulnerable.php"
+    # target = "http://10.89.0.3"
+    target = "https://his.dnsc.edu.ph"
     ctx: DiscoveryContext = DiscoveryContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc)
-    # nuclei = Nuclei()
-    # nuclei.start_scan(session_id, ctx)
-    wapiti = WapitiScanner()
-    wapiti.start_scan(session_id, ctx)
+    zap_scanner = ZapScanner()
+    zap_scanner.start_scan(session_id, ctx)
+    # naabu = Naabu()
+    # naabu.start_scan(session_id, ctx)
     return {"session_id": session_id}
 
 @app.get("/scan")

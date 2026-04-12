@@ -1,33 +1,38 @@
 from celery import chain, chord, group
 from app.modules.tasks.discovery_tasks import (
-    task_subfinder, build_enumeration_context
+    task_subfinder, task_naabu, task_katana,
+    task_httpx, task_sslyze, task_wappalyzer, task_whatweb
 )
 from app.modules.pipeline.context import DiscoveryContext
-from app.modules.tasks.discovery_tasks import task_katana
-from app.modules.tasks.discovery_tasks import launch_discovery_phase
-
-
-# from app.modules.tasks.scanning_tasks import ... (Phase 2, future)
 
 def launch_pipeline(session_id: str, ctx: DiscoveryContext):
     ctx_json = ctx.to_json()
 
-    # phase 0: enumeration
-    enumeration_chord = chord(
-        group(
-            task_katana.s(session_id, ctx_json),
-            task_subfinder.s(session_id, ctx_json),
-        ),
-        build_enumeration_context.s(session_id, ctx_json),
-    )
+    # Asset Discovery
+    # Phase 0: Preamble
+
+    preamble_chord = group(
+            task_katana.si(session_id, ctx_json),
+            task_naabu.si(session_id, ctx_json),
+            task_subfinder.si(session_id, ctx_json),
+        )
+
+    # Phase 0.5: Liveliness
+
+    liveliness_chord = group(
+            task_httpx.si(session_id, ctx_json),
+        )
+
+    # Phase 1 & 1.1: Context Building and Technology Discovery
+    context_chord = group(
+            task_sslyze.si(session_id, ctx_json),
+            task_wappalyzer.si(session_id, ctx_json),
+            task_whatweb.si(session_id, ctx_json),
+        )
 
     full_pipeline = chain(
-        enumeration_chord,
-        launch_discovery_phase.s(session_id)
+        preamble_chord,
+        liveliness_chord,
+        context_chord,
     )
-
-    # When Phase 2 exists, you'd do:
-    # full_pipeline = chain(discovery_chord, phase2_chord, ...)
-    # full_pipeline.delay()
-
     full_pipeline.delay()

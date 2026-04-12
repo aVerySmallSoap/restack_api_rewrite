@@ -9,28 +9,46 @@ from app.modules.scanners.discovery.whatweb.whatweb import WhatWeb
 from app.modules.scanners.discovery.wappalyzer_next.wappalyzer_next import WappalyzerNext
 from app.modules.scanners.discovery.katana.katana import Katana
 from app.modules.celery_app import celery_app
+from app.modules.scanners.discovery.naabu.naabu import Naabu
 
-
-@celery_app.task(bind=True)
-def task_subfinder(self, session_id: str, ctx_json: str) -> dict:
-    ctx = DiscoveryContext(**json.loads(ctx_json))
-    return {"type": "subfinder", "result": Subfinder().start_scan(session_id, ctx)}
-
+# == Asset Discovery ==
+# Phase 0: Preamble
+# Crawl out the site
 @celery_app.task(bind=True)
 def task_katana(self, session_id:str, ctx_json: str) -> dict:
     ctx = DiscoveryContext(**json.loads(ctx_json))
     # TODO: is false for now. The is_two_pass argument will come from the request.
     return {"type": "katana", "result": Katana().start_scan(session_id, ctx, False)}
 
+# Discover any open ports
+@celery_app.task(bind=True)
+def task_naabu(self, session_id:str, ctx_json: str):
+    ctx = DiscoveryContext(**json.loads(ctx_json))
+    return {"type": "naabu", "result": Naabu().start_scan(session_id, ctx)}
+
+# Find any related domains
+@celery_app.task(bind=True)
+def task_subfinder(self, session_id: str, ctx_json: str) -> dict:
+    ctx = DiscoveryContext(**json.loads(ctx_json))
+    return {"type": "subfinder", "result": Subfinder().start_scan(session_id, ctx)}
+
+# Phase 0.5: Liveliness
+
+# Check valid and live URLs and Ports
 @celery_app.task(bind=True)
 def task_httpx(self, session_id: str, ctx_json: str) -> dict:
     ctx = DiscoveryContext(**json.loads(ctx_json))
     return {"type": "httpx", "result": HttpxScanner().start_scan(session_id, ctx)}
 
+# Phase 1: Context building
+
+# Does the site have SSL certs? TLS certs? Are they valid? Are they up-to-date? Are they secure?
 @celery_app.task(bind=True)
 def task_sslyze(self, session_id: str, ctx_json: str) -> dict:
     ctx = DiscoveryContext(**json.loads(ctx_json))
     return {"type": "sslyze", "result": SSLyze().start_scan(session_id, ctx)}
+
+# Phase 1.1: Technology Discovery
 
 @celery_app.task(bind=True)
 def task_whatweb(self, session_id: str, ctx_json: str) -> dict:
@@ -42,6 +60,7 @@ def task_wappalyzer(self, session_id: str, ctx_json: str) -> dict:
     ctx = DiscoveryContext(**json.loads(ctx_json))
     return {"type": "wappalyzer", "result": WappalyzerNext().start_scan(session_id, ctx)}
 
+# CELERY SPECIFIC CHAINS
 
 @celery_app.task(bind=True)
 def build_discovery_context(self, results: list[dict], updated_ctx: str) -> str:

@@ -52,9 +52,9 @@ class Katana(IHeadlessScanner):
             if meta_container.get("exit_code") != 0:
                 logger.error(f"Katana container: {meta_container.get('container').name} has exited abruptly! Error code: {meta_container.get("exit_code")}")
                 raise RuntimeError(f"Katana container: {meta_container.get('container').name} exited abruptly!")
-        return self.parse_results(session_id)
+        return self._parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing Katana results for session: {session_id}")
         collection: list[dict] = []
         hash_map: list[str] = []

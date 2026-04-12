@@ -31,11 +31,13 @@ class Subfinder(IContainerScanner):
             container.remove()
             raise RuntimeError(f"Subfinder failed with exit code {exit_code}")
         container.remove()
-        return self.parse_results(session_id)
+        return self._parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing Subfinder results for session: {session_id}")
         with open(f"{self._base_report_path}/{session_id}.json") as f:
+            if f.tell() == 0:
+                return self._scanner_context.content
             base_input = json.loads(f.readline()).get("input")
             sources: set = set()
             hosts: list = []
@@ -67,11 +69,11 @@ class Subfinder(IContainerScanner):
 
     def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
         import docker
-        logger.info(f"Spawning container: subfinder_{container_name}")
+        logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()
         return client.containers.run(
             image="projectdiscovery/subfinder",
-            name=f"subfinder_{container_name}",
+            name=f"{self._prefix}_{container_name}",
             command=[
                 "-all",
                 "-cs",

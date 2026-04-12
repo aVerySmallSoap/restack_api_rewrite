@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import zapv2
@@ -110,13 +109,16 @@ def start_zap_service():
         client.containers.run(
             image="zaproxy/zap-weekly",
             name="restack_zaproxy",
-            volumes={ #TODO: this should resolve to the user defined path or a named volume
+            ports={"8090/tcp": 8090},
+            environment={
+                "ZAP_JAVA_OPTS": "-Xms512m -Xmx4g"
+            },
+            volumes={
                 f"{os.getenv('ZAP_TEMPLATES')}": {
-                    "bind": "/home/zap/.ZAP",
+                    "bind": "/home/zap/.ZAP/plugin", # Only save plugins. Do not save any sessions, contexts, and other stuff.
                     "mode": "rw",
                 }
             },
-            ports={"8090/tcp": 8090},
             command=[
                 "zap.sh",
                 "-daemon",
@@ -125,6 +127,11 @@ def start_zap_service():
                 "-config", f"api.key={os.getenv('ZAP_API_KEY')}",
                 "-config", "api.addrs.addr.name=.*",
                 "-config", "api.addrs.addr.regex=True",
+                "-config", "selenium.firefoxDriver.path=/home/zap/.ZAP_D/webdriver/linux/64/geckodriver",
+                "-config", "formhandler.enabled=true",
+                "-config", "formhandler.submit=true",
+                "-config", "formhandler.fields.field(0).field=.*",
+                "-config", "formhandler.fields.field(0).value=test",
             ],
             detach=True,
             auto_remove=False,
@@ -154,6 +161,7 @@ def poll_zap_api() -> bool:
         return False
 
 def wait_for_zap_or_crash():
+    import os
     from time import sleep, monotonic
     from loguru import logger
     from zapv2 import ZAPv2
@@ -172,9 +180,9 @@ def wait_for_zap_or_crash():
                 zap_client.autoupdate.download_latest_release()
                 sleep(10)
             del zap_client # after an update request, this object should be destroyed
+            ensure_zap_addons() # ensure that some addons are installed
             return
         sleep(POLL_INTERVAL)
-
     raise Exception("ZAP API could not be found! Polling timed out")
 
 def stop_zap_service():
@@ -188,4 +196,32 @@ def stop_zap_service():
         zap_container.remove()
     except Exception as e:
         logger.error("Something went wrong with docker!")
-        return
+        raise e
+
+def zap_get_request(path, params=None, headers=None):
+    import requests
+    import os
+    response = requests.get(
+        f"http://127.0.0.1:8090/{path}",
+        params=params or {},
+        headers=headers or {
+            "X-ZAP-API-Key": os.getenv('ZAP_API_KEY')
+        },
+        timeout=60
+    )
+    response.raise_for_status()
+    return response.json()
+
+def ensure_zap_addons():
+    required_addons = [
+        "packscanrules",
+        "packpentester",
+        "authhelper",
+        "client",
+        "sqliplugin",
+    ]
+    zap_get_request("/JSON/autoupdate/action/setOptionInstallAddonUpdates/", {"Boolean": "true"})
+    zap_get_request("/JSON/autoupdate/action/setOptionInstallScannerRules/", {"Boolean": "true"})
+    for addon_id in required_addons:
+        zap_get_request("/JSON/autoupdate/action/installAddon/", {"id": addon_id})
+    # log for successful update

@@ -33,9 +33,9 @@ class HttpxScanner(IContainerScanner):
             container.remove()
             raise RuntimeError(f"HTTPX failed with exit code {exit_code}")
         container.remove()
-        return self.parse_results(session_id)
+        return self._parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         # TODO: The scanner involves some custom keys for different CMS', explore and add them later
         # Important keys: tls, tech, cpe
         logger.info(f"Parsing HTTPX results for session: {session_id}")

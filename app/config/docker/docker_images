@@ -2,4 +2,5 @@ docker.io/projectdiscovery/subfinder:latest
 docker.io/projectdiscovery/httpx:latest
 docker.io/projectdiscovery/katana:latest
 docker.io/projectdiscovery/nuclei:latest
+docker.io/projectdiscovery/naabu:latest
 docker.io/zaproxy/zap-weekly:latest

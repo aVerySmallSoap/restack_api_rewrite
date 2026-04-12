@@ -27,7 +27,7 @@ class IScanner(ABC):
         pass
 
     @abstractmethod
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         pass
 
     @abstractmethod

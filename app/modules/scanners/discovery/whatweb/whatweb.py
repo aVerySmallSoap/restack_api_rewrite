@@ -28,9 +28,9 @@ class WhatWeb(IHeadlessScanner):
             container.remove()
             raise RuntimeError(f"WhatWeb failed with exit code {exit_code}")
         container.remove()
-        return self.parse_results(session_id)
+        return self._parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing WhatWeb results for session: {session_id}")
         with open(f"{self._base_report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
