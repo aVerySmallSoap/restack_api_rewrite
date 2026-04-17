@@ -18,14 +18,9 @@ class Katana(IHeadlessScanner):
     _prefix: str = "katana"
     _prefix_headless: str = "katana_headless"
     _scanner_context: KatanaContext
-    # metrics
-    _scan_start: float
-    _scan_end: float
-
 
     def __init__(self): # This object should be gone after the scan
         self._scanner_context = KatanaContext()
-        self._scan_start = time.time()
 
     def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
         logger.info(f"Starting Katana scan: {session_id}")
@@ -39,9 +34,11 @@ class Katana(IHeadlessScanner):
 
         if result.get("StatusCode") != 0:
             logger.error(f"Katana has exited abruptly on exit code: {result.get('StatusCode')}")
+            container.remove()
             raise
         if headless_result.get("StatusCode") != 0: # crash
             logger.error(f"Headless Katana has exited abruptly on exit code: {result.get('StatusCode')}")
+            headless_container.remove()
             raise
         return self._parse_results(session_id)
 
@@ -85,9 +82,6 @@ class Katana(IHeadlessScanner):
             "outOfScope": out_of_scope,
         }
         self._cleanup(session_id)
-        # test line
-        logger.info(f"Time it took for the scan: {self._scan_end - self._scan_start}")
-        # end test
         return self._scanner_context.content
 
     def _cleanup(self, session_id: str) -> None:

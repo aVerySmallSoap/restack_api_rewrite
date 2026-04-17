@@ -10,6 +10,7 @@ from app.modules.pipeline.context import DiscoveryContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
 from app.modules.scanners.discovery.katana.katana import Katana
+from app.modules.scanners.discovery.naabu.naabu import Naabu
 
 
 @asynccontextmanager
@@ -34,8 +35,8 @@ async def root():
     target = "http://10.89.0.3"
     # target = "https://his.dnsc.edu.ph"
     ctx: DiscoveryContext = DiscoveryContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc)
-    katana = Katana()
-    katana.start_scan(session_id, ctx)
+    naabu = Naabu()
+    naabu.start_scan(session_id, ctx)
     return {"session_id": session_id}
 
 @app.get("/scan")
