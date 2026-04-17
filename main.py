@@ -9,10 +9,7 @@ from fastapi import FastAPI
 from app.modules.pipeline.context import DiscoveryContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
-from app.modules.scanners.web.nuclei.nuclei import Nuclei
-from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
-from app.modules.scanners.web.zap.zap_scanner import ZapScanner
-from app.modules.scanners.discovery.naabu.naabu import Naabu
+from app.modules.scanners.discovery.katana.katana import Katana
 
 
 @asynccontextmanager
@@ -31,25 +28,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/")
+@app.get("/", summary="Testing enpoint for individual scanners")
 async def root():
     session_id: str = str(uuid.uuid4())
-    # target = "http://10.89.0.3"
-    target = "https://his.dnsc.edu.ph"
+    target = "http://10.89.0.3"
+    # target = "https://his.dnsc.edu.ph"
     ctx: DiscoveryContext = DiscoveryContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc)
-    zap_scanner = ZapScanner()
-    zap_scanner.start_scan(session_id, ctx)
-    # naabu = Naabu()
-    # naabu.start_scan(session_id, ctx)
+    katana = Katana()
+    katana.start_scan(session_id, ctx)
     return {"session_id": session_id}
 
 @app.get("/scan")
 async def scan(url: str):
     session_id = str(uuid.uuid4())
+    primary_host = urlparse(url).hostname
+    assert isinstance(primary_host, str) # catch
     ctx = DiscoveryContext(
         session_id=session_id,
         primary_url=url,
-        primary_host=urlparse(url).hostname,
+        primary_host= primary_host
     )
     launch_pipeline(session_id, ctx)
     return {"session_id": session_id}  # client polls this ID for status
