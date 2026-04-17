@@ -34,7 +34,6 @@ class Naabu(IContainerScanner):
             for line in f.read().splitlines():
                 record = json.loads(line) # TODO: also check if the ip is the same
                 ports.append(record["port"])
-        print(ports)
         self._cleanup(session_id)
         return {"ports": ports}
 

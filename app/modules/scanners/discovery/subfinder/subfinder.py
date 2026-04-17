@@ -23,14 +23,12 @@ class Subfinder(IContainerScanner):
         self._scanner_context.session_id = session_id
 
         result = container.wait()
-        exit_code = result["StatusCode"]
+        exit_code = result.get("StatusCode")
 
         if exit_code != 0:
-            #throw logs and errors
-            logger.debug(f"Subfinder exited abruptly! Exit code: {exit_code}")
+            logger.error(f"Subfinder has exited abruptly on exit code: {result.get('StatusCode')}")
             container.remove()
-            raise RuntimeError(f"Subfinder failed with exit code {exit_code}")
-        container.remove()
+            raise
         return self._parse_results(session_id)
 
     def _parse_results(self, session_id: str) -> dict:
@@ -42,17 +40,19 @@ class Subfinder(IContainerScanner):
             sources: set = set()
             hosts: list = []
             for line in f.read().splitlines():
-                json_line: dict = json.loads(line)
-                for source in json_line.get("sources"):
+                record: dict = json.loads(line)
+                record_sources = record.get("sources")
+                assert isinstance(record_sources, list)
+                for source in record_sources:
                     sources.add(source)
-                hosts.append(json_line.get("host"))
+                hosts.append(record.get("host"))
         self._scanner_context.content = {
             base_input: {
                 "hosts": hosts,
                 "sources": list(sources)
             }
         }
-        # self._cleanup(session_id)
+        self._cleanup(session_id)
         return self._scanner_context.content
 
     def _cleanup(self, session_id: str) -> None:
