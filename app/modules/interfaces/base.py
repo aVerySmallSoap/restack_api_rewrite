@@ -1,30 +1,28 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 from docker.models.containers import Container
 
-from app.modules.interfaces.options import BaseContext
+from app.modules.interfaces.options import BaseContext, PhaseContext
+
 
 # === Scanner Interfaces ===
 
-class IScanner(ABC):
+class IBaseScanner(ABC):
     """
-    Base scanner interface.
+        Base scanner interface.
 
-    This interface can be implemented to derive custom scanner behavior;
-    see IContainerScanner and IHeadlessScanner.
+        This interface can be implemented to derive custom scanner behavior;
+        see IContainerScanner and IHeadlessScanner.
 
-    In some cases, there maybe scanners that interact with a single container
-    that is spawned on startup; see ZapScanner.
-    If so, you should implement this interface instead of IContainerScanner or its
-    implementors.
-    """
+        In some cases, there maybe scanners that interact with a single container
+        that is spawned on startup; see ZapScanner.
+        If so, you should implement this interface instead of IContainerScanner or its
+        implementors.
+        """
     _base_report_path: str
     _prefix: str
     _scanner_context: BaseContext
-
-    @abstractmethod
-    def start_scan(self, session_id: str, ctx: BaseContext) -> dict:
-        pass
 
     @abstractmethod
     def _parse_results(self, session_id: str) -> dict:
@@ -38,6 +36,21 @@ class IScanner(ABC):
         :param session_id: The session ID
         :return:
         """
+        pass
+
+class IScanner(IBaseScanner):
+    @abstractmethod
+    def start_scan(self, session_id: str, ctx: BaseContext) -> dict:
+        pass
+
+class IPhaseScanner(IBaseScanner):
+    @abstractmethod
+    def start_scan(
+            self,
+            session_id: str,
+            ctx: BaseContext,
+            phase_ctx: PhaseContext,
+    ) -> dict:
         pass
 
 class IContainerScanner(IScanner):
@@ -67,11 +80,36 @@ class IHeadlessScanner(IContainerScanner):
         """
         pass
 
+class IPhaseContainerScanner(IPhaseScanner):
+    @abstractmethod
+    def _spawn(self, container_name: str, ctx: BaseContext) -> Container:
+        """
+        Spawns and runs a docker container associated with the scanner.
+        :param container_name: Name of the container
+        :param ctx: The discovery context
+        :return: The docker container object
+        """
+        pass
+
+class IPhaseHeadlessScanner(IPhaseContainerScanner):
+    """This interface should be used implemented by scanners that spawn docker containers that may be headless."""
+
+    @abstractmethod
+    def _spawn_headless(self, container_name: str, ctx: BaseContext) -> Container:
+        """
+        Spawns and runs a docker container associated with the scanner.
+        This function should be implemented by the subclass when the scanner supports a headless mode.
+        :param container_name: Name of the container
+        :param ctx: The discovery context
+        :return: The docker container object
+        """
+        pass
+
 # === Normalizers interfaces ===
 
 class INormalizer(ABC):
     @abstractmethod
-    def normalize(self, data: any) -> dict:
+    def normalize(self, data: Any) -> dict:
         """
         Normalizes the data to a specific structure.
         :param data: Data to be normalized

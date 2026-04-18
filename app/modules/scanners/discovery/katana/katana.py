@@ -1,12 +1,11 @@
 import json
-import time
 from pathlib import Path
 import hashlib
 
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 from app.modules.interfaces.base import IHeadlessScanner
 from app.modules.utils.utils import map_endpoints
 from app.modules.utils.utils import is_same_host
@@ -22,16 +21,13 @@ class Katana(IHeadlessScanner):
     def __init__(self): # This object should be gone after the scan
         self._scanner_context = KatanaContext()
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting Katana scan: {session_id}")
         self._scanner_context.primary_host = ctx.primary_host
-        #Spawn necessary containers
         container: Container = self._spawn(session_id, ctx)
         headless_container: Container = self._spawn_headless(session_id, ctx)
-
         result = container.wait()
         headless_result = headless_container.wait()
-
         if result.get("StatusCode") != 0:
             logger.error(f"Katana has exited abruptly on exit code: {result.get('StatusCode')}")
             container.remove()
@@ -45,8 +41,9 @@ class Katana(IHeadlessScanner):
     def _parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing Katana results for session: {session_id}")
         hashed_records: list[str] = []
-        endpoints: set = set()
-        out_of_scope: set = set()
+        out_of_scope: list = []
+        unique_endpoints: set = set()
+        endpoints: list[str] = []
 
         try:
             assert isinstance(self._scanner_context.primary_host, str)
@@ -59,30 +56,36 @@ class Katana(IHeadlessScanner):
         with open(f"{self._base_report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
                 record = json.loads(line)
+                _endpoint = record["request"].get("endpoint")
                 record_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
-                if not is_same_host(self._scanner_context.primary_host, record["request"].get("endpoint")):
-                    out_of_scope.add(json)
+                if not is_same_host(self._scanner_context.primary_host, _endpoint):
+                    out_of_scope.append(_endpoint)
                     continue
                 hashed_records.append(record_hash)
-                endpoints.add(record["request"].get("endpoint"))
+                endpoints.append(_endpoint)
+                unique_endpoints.add(_endpoint)
 
         with open(f"{self._base_report_path}/headless_{session_id}.json") as f:
             for line in f.read().splitlines():
                 record = json.loads(line)
+                _endpoint = record["request"].get("endpoint")
                 record_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
-                if not is_same_host(self._scanner_context.primary_host, record["request"].get("endpoint")):
-                    out_of_scope.add(json)
+                if not is_same_host(self._scanner_context.primary_host, _endpoint):
+                    out_of_scope.append(_endpoint)
                     continue
                 if record_hash not in hashed_records:
                     hashed_records.append(record_hash)
-                endpoints.add(record["request"].get("endpoint"))
-        site_map = map_endpoints(endpoints)
-        self._scanner_context.content = {
+                endpoints.append(_endpoint)
+                unique_endpoints.add(_endpoint)
+        site_map = map_endpoints(unique_endpoints)
+        content = {
             "siteMap": site_map,
+            "endPoints": endpoints,
             "outOfScope": out_of_scope,
         }
+        self._scanner_context.content = content
         self._cleanup(session_id)
-        return self._scanner_context.content
+        return content
 
     def _cleanup(self, session_id: str) -> None:
         import docker
@@ -102,7 +105,7 @@ class Katana(IHeadlessScanner):
             logger.warning("Containers could not be found! Skipping cleanup...")
             return
 
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()
@@ -131,7 +134,7 @@ class Katana(IHeadlessScanner):
             auto_remove=False,
         )
 
-    def _spawn_headless(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn_headless(self, container_name: str, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning headless container: {self._prefix_headless}_{container_name}")
         client = docker.from_env()

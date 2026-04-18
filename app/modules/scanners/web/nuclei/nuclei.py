@@ -5,11 +5,12 @@ from loguru import logger
 
 from app.modules.interfaces.base import IHeadlessScanner
 from app.modules.interfaces.options import BaseContext
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 from app.modules.scanners.web.nuclei.nuclei_context import NucleiContext
 
 
 class Nuclei(IHeadlessScanner):
+
     _base_report_path = f"{Path.cwd()}/app/reports/nuclei"
     _prefix = "nuclei"
     _prefix_headless = "nuclei_headless"
@@ -18,7 +19,7 @@ class Nuclei(IHeadlessScanner):
     def __init__(self):
         self._scanner_context = NucleiContext()
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         #Check if there is a headless flag
         logger.info(f"Starting Nuclei scan: {session_id}")
         container = self._spawn(session_id, ctx)
@@ -28,9 +29,9 @@ class Nuclei(IHeadlessScanner):
             logger.error(
                 f"Katana container: {container.name} has exited abruptly!")
             raise RuntimeError(f"Katana container: {container.name} exited abruptly!")
-        return self.parse_results(session_id)
+        return self._parse_results(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def _parse_results(self, session_id: str) -> dict:
         # TODO: implement
         pass
 
@@ -38,7 +39,7 @@ class Nuclei(IHeadlessScanner):
         # TODO: implement
         pass
 
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()

@@ -4,13 +4,13 @@ from pathlib import Path
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import DiscoveryContext
-from app.modules.interfaces.base import IContainerScanner
 from app.modules.interfaces.options import HttpxContext
-from app.modules.pipeline.context import TechEntry
+from app.modules.pipeline.context import TechEntry, ScanContext
+from app.modules.tasks.discovery.contexts.preamble_context import PreambleContext
+from app.modules.interfaces.base import IPhaseContainerScanner
 
 
-class HttpxScanner(IContainerScanner):
+class HttpxScanner(IPhaseContainerScanner):
     #TODO: httpx can run multiple requests on several endpoints at the same time
     # Might be better to first launch subfinder then pipe its results to scanners.
     _base_report_path: str = f"{Path.cwd()}/app/reports/httpx"
@@ -20,19 +20,17 @@ class HttpxScanner(IContainerScanner):
     def __init__(self):
         self._scanner_context = HttpxContext()
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext, phase_ctx: PreambleContext) -> dict:
         logger.info(f"Starting HTTPX scan: {session_id}")
         self._scanner_context.session_id = session_id
-        container = self._spawn(session_id, ctx)
 
+        container = self._spawn(session_id, ctx)
         result = container.wait()
-        exit_code = result["StatusCode"]
-        if exit_code != 0:
+        if result.get('StatusCode') != 0:
             # throw logs and errors
-            logger.debug(f"HTTPX exited abruptly! Exit code: {exit_code}")
+            logger.error(f"HTTPX has exited abruptly on exit code: {result.get('StatusCode')}")
             container.remove()
-            raise RuntimeError(f"HTTPX failed with exit code {exit_code}")
-        container.remove()
+            raise
         return self._parse_results(session_id)
 
     def _parse_results(self, session_id: str) -> dict:
@@ -44,10 +42,11 @@ class HttpxScanner(IContainerScanner):
         with open(f"{self._base_report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
                 json_line: dict = json.loads(line) # I do not know yet if this will change into an array if multiple urls are fed
+                technologies = json_line.get("tech")
                 if not json_line:
                     continue # may be a break or return when empty. Need to test
-
-                for tech in json_line.get("tech"):
+                assert isinstance(technologies, list)
+                for tech in technologies:
                     # each entry is a string with a structure of name:version
                     arr = tech.split(":") if tech.__contains__(":") else [tech]
                     if len(arr) == 1:
@@ -64,7 +63,7 @@ class HttpxScanner(IContainerScanner):
                     ))
 
         # after everything is done, store it on content
-        self._scanner_context.content = {
+        content = {
             "technologies": {
                 "versioned": [t.__dict__ for t in versioned_tech],
                 "non_versioned": [t.__dict__ for t in non_versioned_tech]
@@ -72,8 +71,10 @@ class HttpxScanner(IContainerScanner):
             "cpe": json_line.get("cpe"),
             "tls": json_line.get("tls"),
         }
+        self._scanner_context.content = content
+        print(content)
         # self._cleanup(session_id)
-        return self._scanner_context.content
+        return content
 
     def _cleanup(self, session_id: str) -> None:
         import docker
@@ -87,7 +88,7 @@ class HttpxScanner(IContainerScanner):
         except docker.errors.NotFound:
             logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
 
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()

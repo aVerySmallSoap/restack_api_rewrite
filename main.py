@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from loguru import logger
 from fastapi import FastAPI
 
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
 from app.modules.scanners.discovery.subfinder.subfinder import Subfinder
@@ -32,7 +32,7 @@ async def root():
     session_id: str = str(uuid.uuid4())
     target = "http://10.89.0.3"
     # target = "https://his.dnsc.edu.ph"
-    ctx: DiscoveryContext = DiscoveryContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc)
+    ctx: ScanContext = ScanContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc)
     subfinder = Subfinder()
     subfinder.start_scan(session_id, ctx)
     return {"session_id": session_id}
@@ -42,10 +42,11 @@ async def scan(url: str):
     session_id = str(uuid.uuid4())
     primary_host = urlparse(url).hostname
     assert isinstance(primary_host, str) # catch
-    ctx = DiscoveryContext(
+    ctx = ScanContext(
         session_id=session_id,
         primary_url=url,
-        primary_host= primary_host
+        primary_host= primary_host,
+        config=None
     )
     launch_pipeline(session_id, ctx)
     return {"session_id": session_id}  # client polls this ID for status

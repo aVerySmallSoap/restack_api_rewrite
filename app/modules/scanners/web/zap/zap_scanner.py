@@ -5,7 +5,7 @@ from zapv2 import ZAPv2
 
 from app.modules.interfaces.base import IScanner
 from app.modules.scanners.web.zap.zap_context import ZapContext, ZapScanProfiles
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 
 
 # This class might communicate with containers, but the class itself does not spawn them
@@ -19,7 +19,7 @@ class ZapScanner(IScanner):
         self._zap_instance = ZAPv2(apikey=os.getenv("ZAP_API_KEY"), proxies={"http": "http://127.0.0.1:8090"})
         self._scanner_context = ZapContext()
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict: # This should not use discovery context but WebContext
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict: # This should not use discovery context but WebContext
         # Context building
         self._zap_instance.context.new_context(session_id)
         self._zap_instance.context.include_in_context(session_id, ctx.primary_url)
@@ -59,7 +59,7 @@ class ZapScanner(IScanner):
     def _cleanup(self, session_id: str) -> None:
         pass
 
-    def _start_trad_active_and_client_spider(self, session_id:str, ctx: DiscoveryContext):
+    def _start_trad_active_and_client_spider(self, session_id:str, ctx: ScanContext):
         from loguru import logger
         from time import sleep
         import requests
@@ -146,7 +146,7 @@ class ZapScanner(IScanner):
             logger.error("Something happened to zap!")
             raise e
 
-    def _start_passive_attack(self, ctx: DiscoveryContext):
+    def _start_passive_attack(self, ctx: ScanContext):
         from loguru import logger
         from time import sleep
         try:
@@ -162,7 +162,7 @@ class ZapScanner(IScanner):
             logger.error("Something happened to zap!")
             raise e
 
-    def _start_active_attack(self, session_id:str, ctx: DiscoveryContext):
+    def _start_active_attack(self, session_id:str, ctx: ScanContext):
         from loguru import logger
         from time import sleep
         logger.info("Starting active attack mode")

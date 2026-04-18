@@ -8,3 +8,4 @@ celery
 wapiti3
 pydantic
 zaproxy
+orjson

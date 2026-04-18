@@ -3,7 +3,7 @@ from pathlib import Path
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 from app.modules.interfaces.options import WhatWebContext
 from app.modules.interfaces.base import IHeadlessScanner
 
@@ -16,7 +16,7 @@ class WhatWeb(IHeadlessScanner):
     def __init__(self):
         self._scanner_context = WhatWebContext()
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting WhatWeb scan: {session_id}")
         container = self._spawn(session_id, ctx)
 
@@ -50,7 +50,7 @@ class WhatWeb(IHeadlessScanner):
         except docker.errors.NotFound:
             logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
 
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()
@@ -73,5 +73,5 @@ class WhatWeb(IHeadlessScanner):
             auto_remove=False,
         )
 
-    def _spawn_headless(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn_headless(self, container_name: str, ctx: ScanContext) -> Container:
         pass

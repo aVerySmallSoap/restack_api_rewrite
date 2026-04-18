@@ -6,7 +6,7 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.interfaces.base import IContainerScanner
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 
 
 class Naabu(IContainerScanner):
@@ -14,7 +14,7 @@ class Naabu(IContainerScanner):
     _prefix = "naabu"
     _scanner_context = None
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting Naabu scan: {session_id}")
         container = self._spawn(session_id, ctx)
         # self._scanner_context.session_id = session_id
@@ -49,7 +49,7 @@ class Naabu(IContainerScanner):
             logger.warning("Containers could not be found! Skipping cleanup...")
             return
 
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()

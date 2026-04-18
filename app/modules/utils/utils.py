@@ -33,3 +33,15 @@ def is_same_host(host: str, endpoint: str) -> bool:
     """ Checks if the given endpoint matches the given host. The host is assumed to be already in a parsed state i.e, urlparse(host).netloc"""
     from urllib.parse import urlparse
     return host == urlparse(endpoint).netloc
+
+# misc
+
+def list_to_str(items: list[str], separator: str = ",") -> str:
+    """Converts a list of items into a string. The default separator of this is a comma (,)"""
+    returnable: str = ""
+    for index in range(len(items)):
+        if index == len(items) - 1:
+            returnable += items[index]
+            break
+        returnable += items[index] + separator
+    return returnable

@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import zapv2
-
 from app.modules.utils.utils import read_required_images
 
 def ensure_podman_docker_presence():

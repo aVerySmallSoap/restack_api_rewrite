@@ -5,7 +5,7 @@ from loguru import logger
 from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanner, SslyzeOutputAsJson, \
     ServerScanResultAsJson
 
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 from app.modules.interfaces.base import IScanner
 from app.modules.interfaces.options import SSLyzeContext
 
@@ -35,7 +35,7 @@ class SSLyze(IScanner):
         ScanCommand.TLS_EXTENDED_MASTER_SECRET,
     }
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting SSlyze scan: {session_id}")
         requests = [ServerScanRequest(
             server_location=ServerNetworkLocation(ctx.primary_url.removeprefix("https://"), 443),

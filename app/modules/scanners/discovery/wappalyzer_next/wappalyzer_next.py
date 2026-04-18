@@ -3,7 +3,7 @@ from pathlib import Path
 from loguru import logger
 from docker.models.containers import Container
 
-from app.modules.pipeline.context import DiscoveryContext
+from app.modules.pipeline.context import ScanContext
 from app.modules.interfaces.base import IHeadlessScanner
 from app.modules.interfaces.options import WappalyzerContext
 
@@ -17,7 +17,7 @@ class WappalyzerNext(IHeadlessScanner):
     def __init__(self):
         self._scanner_context = WappalyzerContext()
 
-    def start_scan(self, session_id: str, ctx: DiscoveryContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting Wappalyzer Next scan: {session_id}")
         container = self._spawn(session_id, ctx)
         headless_container = self._spawn_headless(session_id, ctx)
@@ -64,7 +64,7 @@ class WappalyzerNext(IHeadlessScanner):
         except docker.errors.NotFound:
             logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
 
-    def _spawn(self, container_name: str, ctx: DiscoveryContext) -> Container:
+    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning container: {self._prefix}_{container_name}")
         client = docker.from_env()
@@ -86,7 +86,7 @@ class WappalyzerNext(IHeadlessScanner):
             auto_remove=False,
         )
 
-    def _spawn_headless(self, container_name, ctx: DiscoveryContext) -> Container:
+    def _spawn_headless(self, container_name, ctx: ScanContext) -> Container:
         import docker
         logger.info(f"Spawning container: {self._prefix_headless}_{container_name}")
         client = docker.from_env()
