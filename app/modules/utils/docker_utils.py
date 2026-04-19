@@ -140,10 +140,8 @@ def start_zap_service():
         raise docker_errors.DockerException(e)
 
 def poll_zap_api() -> bool:
-    from loguru import logger
     import requests
     import os
-    logger.info("Polling the ZAP API")
     try:
         response = requests.get(
             "http://127.0.0.1:8090/JSON/core/view/version/", # The only that would change here later is the PORT
@@ -165,7 +163,7 @@ def wait_for_zap_or_crash():
     from zapv2 import ZAPv2
     logger.info("Checking if ZAP service is running...")
     TIMEOUT: float = 60.0
-    POLL_INTERVAL: float = 10.0 # This should be aimed on low-end hardware
+    POLL_INTERVAL: float = 5.0 # This should be aimed on low-end hardware
     deadline = monotonic() + TIMEOUT
 
     while monotonic() < deadline:
@@ -176,7 +174,7 @@ def wait_for_zap_or_crash():
             if not zap_client.autoupdate.is_latest_version:
                 logger.info("Zap out of date! Updating...")
                 zap_client.autoupdate.download_latest_release()
-                sleep(10)
+                sleep(5)
             del zap_client # after an update request, this object should be destroyed
             ensure_zap_addons() # ensure that some addons are installed
             return

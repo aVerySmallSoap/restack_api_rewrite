@@ -1,3 +1,4 @@
+import time
 import uuid
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
@@ -14,6 +15,7 @@ from app.modules.scanners.discovery.subfinder.subfinder import Subfinder
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # call and check docker images. Check if there is any updates
+    start_time = time.time()
     logger.add("./app/logs/{time}.log", rotation="1 day", compression="zip")
     logger.info("Starting server")
     load_dotenv()
@@ -22,6 +24,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(e)
         raise
+    end_time = time.time()
+    logger.debug(f"Startup time: {(end_time - start_time)}")
     yield
     stop_zap_service()
 

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -36,11 +37,17 @@ class SSLyze(IScanner):
     }
 
     def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
-        logger.info(f"Starting SSlyze scan: {session_id}")
-        requests = [ServerScanRequest(
-            server_location=ServerNetworkLocation(ctx.primary_url.removeprefix("https://"), 443),
-            scan_commands=self._BASELINE_COMMANDS
-        )]
+        logger.info(f"Starting SSLyze scan: {session_id}")
+        if ctx.primary_url.__contains__("https://"):
+            requests = [ServerScanRequest(
+                server_location=ServerNetworkLocation(ctx.primary_url.removeprefix("https://"), 443),
+                scan_commands=self._BASELINE_COMMANDS
+            )]
+        else:
+            requests = [ServerScanRequest(
+                server_location=ServerNetworkLocation(ctx.primary_url.removeprefix("http://"), 80),
+                scan_commands=self._BASELINE_COMMANDS
+            )]
 
         scanner = Scanner()
         date_scans_started = datetime.now(timezone.utc)
@@ -64,7 +71,7 @@ class SSLyze(IScanner):
 
         json_str = json_output.model_dump_json(indent=2)
         Path(f"{self._base_report_path}/{session_id}.json").write_text(json_str)
-        return {}  # list of TLSFinding
+        return json.loads(json_str)
 
     def _parse_results(self, session_id: str) -> dict:
         pass

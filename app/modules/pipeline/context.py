@@ -1,26 +1,17 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from pydantic import BaseModel
 from typing import Optional
 
 import redis
 
 redis_client = redis.Redis.from_url(url="redis://localhost:6379")
 
-@dataclass
-class TechEntry:
+class TechEntry(BaseModel):
     name: str
-    version: Optional[str]
+    version: Optional[str] | Optional[list[str]]
     source: str # WhatWeb | Wappalyzer-Next | HTTPX
     categories: Optional[list[str]] = None
-
-@dataclass
-class BannerEntry:
-    host: str
-    server: Optional[str]
-    powered_by: Optional[str]
-    title: Optional[str]
-    status_code: int
-    redirects_to: Optional[str]
 
 @dataclass
 class TLSFinding:
@@ -34,13 +25,6 @@ class TLSFinding:
 class SiteMap:
     collection: list[dict]
     map: dict[str, dict]
-
-@dataclass
-class EnumerationContext:
-    #subfinder
-    hosts: list = field(default_factory=list)
-    # katana
-    site_map: Optional[SiteMap] = None
 
 @dataclass
 class ScanContext:

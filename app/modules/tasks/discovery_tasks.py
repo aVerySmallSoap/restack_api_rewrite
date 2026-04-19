@@ -1,13 +1,3 @@
-import json
-
-from app.modules.pipeline.context import ScanContext, TechEntry, BannerEntry, TLSFinding, SiteMap, \
-    EnumerationContext
-from app.modules.scanners.discovery.httpx_scanner.httpxscanner import HttpxScanner
-from app.modules.scanners.discovery.sslyze.sslyze_scanner import SSLyze
-from app.modules.scanners.discovery.whatweb.whatweb import WhatWeb
-from app.modules.scanners.discovery.wappalyzer_next.wappalyzer_next import WappalyzerNext
-from app.modules.celery_app import celery_app
-
 # == Asset Discovery ==
 
 # Phase 0.5: Liveliness
@@ -17,22 +7,7 @@ from app.modules.celery_app import celery_app
 # Phase 1: Context building
 
 # Does the site have SSL certs? TLS certs? Are they valid? Are they up-to-date? Are they secure?
-@celery_app.task(bind=True)
-def task_sslyze(self, session_id: str, ctx_json: str) -> dict:
-    ctx = ScanContext(**json.loads(ctx_json))
-    return {"type": "sslyze", "result": SSLyze().start_scan(session_id, ctx)}
 
-# Phase 1.1: Technology Discovery
-
-@celery_app.task(bind=True)
-def task_whatweb(self, session_id: str, ctx_json: str) -> dict:
-    ctx = ScanContext(**json.loads(ctx_json))
-    return {"type": "whatweb", "result": WhatWeb().start_scan(session_id, ctx)}
-
-@celery_app.task(bind=True)
-def task_wappalyzer(self, session_id: str, ctx_json: str) -> dict:
-    ctx = ScanContext(**json.loads(ctx_json))
-    return {"type": "wappalyzer", "result": WappalyzerNext().start_scan(session_id, ctx)}
 
 # CELERY SPECIFIC CHAINS
 

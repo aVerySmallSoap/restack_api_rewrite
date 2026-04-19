@@ -42,6 +42,8 @@ class HttpxScanner(IPhaseContainerScanner):
         with open(f"{self._base_report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
                 json_line: dict = json.loads(line) # I do not know yet if this will change into an array if multiple urls are fed
+                if json_line.get("failed"):
+                    return None
                 technologies = json_line.get("tech")
                 if not json_line:
                     continue # may be a break or return when empty. Need to test
@@ -72,14 +74,13 @@ class HttpxScanner(IPhaseContainerScanner):
             "tls": json_line.get("tls"),
         }
         self._scanner_context.content = content
-        print(content)
-        # self._cleanup(session_id)
+        self._cleanup(session_id)
         return content
 
     def _cleanup(self, session_id: str) -> None:
         import docker
         logger.info("Cleaning up HTTPX artifacts")
-        Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
+        # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
             container = client.containers.get(f"{self._prefix}_{session_id}")

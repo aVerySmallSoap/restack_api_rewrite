@@ -5,4 +5,8 @@ from .discovery.preamble import (
 from .discovery.liveliness import (
  task_httpx, task_build_liveliness_context
 )
+
+from .discovery.asset import (
+ task_sslyze, task_whatweb, task_wappalyzer, task_build_asset_context
+)
 from . import discovery_tasks
