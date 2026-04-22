@@ -8,13 +8,11 @@ from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanne
 
 from app.modules.pipeline.context import ScanContext
 from app.modules.interfaces.base import IScanner
-from app.modules.interfaces.options import SSLyzeContext
 
 
 class SSLyze(IScanner):
     _base_report_path: str = f"{Path.cwd()}/app/reports/sslyze"
     _prefix = "sslyze"
-    _scanner_context = SSLyzeContext()
     _BASELINE_COMMANDS = {
         ScanCommand.CERTIFICATE_INFO,
         ScanCommand.SSL_2_0_CIPHER_SUITES,

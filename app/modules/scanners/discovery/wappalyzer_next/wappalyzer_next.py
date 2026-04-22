@@ -8,6 +8,7 @@ from app.modules.interfaces.base import IHeadlessScanner
 from app.modules.pipeline.context import TechEntry
 
 
+# noinspection D
 class WappalyzerNext(IHeadlessScanner):
     _base_report_path = f"{Path.cwd()}/app/reports/wappalyzer_next"
     _prefix = "wappalyzer-next"
@@ -35,46 +36,57 @@ class WappalyzerNext(IHeadlessScanner):
 
     def _parse_results(self, session_id: str) -> dict:
         import json
+        import os
         logger.info(f"Parsing wappalyzer-next results for session: {session_id}")
-        collection: list[str] = []
-        with open(f"{self._base_report_path}/{session_id}.json") as f:
-            if f.tell() != 0:
-                for line in f.read().splitlines():
-                    record = json.loads(line).get(self._scanner_context.primary_url)
-                    if record is not None or record != {}:
-                        assert isinstance(record, dict)
-                        for plugin, content in record:
-                            print(f"{plugin}: {content["version"] if content["version"] != "" else None}")
-                            collection.append(
-                                TechEntry(
-                                    name=plugin,
-                                    version=content["version"] if content["version"] != "" else None,
-                                    source="wappalyzer-next",
-                                    categories=None
-                                ).model_dump_json()
+        path = f"{self._base_report_path}/{session_id}.json"
+        headless_path = f"{self._base_report_path}/{self._prefix_headless}_{session_id}.json"
+        if os.path.getsize(path) == 0:
+            self._cleanup(session_id)
+            return None
+        collection: list[TechEntry] = []
+        with open(path) as f:
+            for line in f.read().splitlines():
+                record = json.loads(line).get(self._scanner_context.primary_url)
+                if record is not None or record != {}:
+                    assert isinstance(record, dict)
+                    for plugin, content in record:
+                        print(f"{plugin}: {content["version"] if content["version"] != "" else None}")
+                        collection.append(
+                            TechEntry(
+                                name=plugin,
+                                version=content["version"] if content["version"] != "" else None,
+                                source="wappalyzer-next",
+                                categories=None
                             )
-        with open(f"{self._base_report_path}/{self._prefix_headless}_{session_id}.json") as f:
-            if f.tell() != 0:
-                for line in f.read().splitlines():
-                    record = json.loads(line).get(self._scanner_context.primary_url)
-                    if record is not None or record != {}:
-                        assert isinstance(record, dict)
-                        for plugin, content in record:
-                            collection.append(
-                                TechEntry(
-                                    name=plugin,
-                                    version=content["version"] if content["version"] != "" else None,
-                                    source="wappalyzer-next",
-                                    categories=None
-                                ).model_dump_json()
+                        )
+        with open(headless_path) as f:
+            if os.path.getsize(path) == 0:
+                self._cleanup(session_id)
+                return {
+                    "technologies": [entry.model_dump() for entry in collection]
+                }
+            for line in f.read().splitlines():
+                record = json.loads(line).get(self._scanner_context.primary_url)
+                if record is not None or record != {}:
+                    assert isinstance(record, dict)
+                    for plugin, content in record:
+                        collection.append(
+                            TechEntry(
+                                name=plugin,
+                                version=content["version"] if content["version"] != "" else None,
+                                source="wappalyzer-next",
+                                categories=None
                             )
+                        )
         self._cleanup(session_id)
-        return {"data": collection}
+        return {
+            "technologies": [entry.model_dump() for entry in collection]
+        }
 
     def _cleanup(self, session_id: str) -> None:
         import docker
         logger.info("Cleaning up wappalyzer-next artifacts")
-        Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True) #TODO: might error out if a scan produces no files
+        # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
             container = client.containers.get(f"{self._prefix}_{session_id}")

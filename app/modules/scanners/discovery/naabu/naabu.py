@@ -12,12 +12,10 @@ from app.modules.pipeline.context import ScanContext
 class Naabu(IContainerScanner):
     _base_report_path = f"{Path.cwd()}/app/reports/naabu"
     _prefix = "naabu"
-    _scanner_context = None
 
     def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting Naabu scan: {session_id}")
         container = self._spawn(session_id, ctx)
-        # self._scanner_context.session_id = session_id
         result = container.wait()
         exit_code = result.get("StatusCode")
 

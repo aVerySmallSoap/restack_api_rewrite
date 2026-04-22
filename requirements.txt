@@ -9,3 +9,4 @@ wapiti3
 pydantic
 zaproxy
 orjson
+search_vulns

@@ -13,4 +13,4 @@ celery_app.conf.update(
     accept_content=["json"],
 )
 
-celery_app.autodiscover_tasks(["app.modules.tasks"])
+celery_app.autodiscover_tasks(["app.modules.tasks", "app.modules.tasks.discovery.minor_tasks"])
