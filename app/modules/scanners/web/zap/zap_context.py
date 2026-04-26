@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-class ZapContext():
+class ZapContext:
     config: Optional[dict] = None
 
 class ZapScanProfiles(str, Enum):

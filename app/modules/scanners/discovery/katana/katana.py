@@ -1,44 +1,90 @@
 import json
+import time
 from pathlib import Path
 import hashlib
+from time import sleep
 
 from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import ScanContext
-from app.modules.interfaces.base import IHeadlessScanner
-from app.modules.utils.utils import map_endpoints
-from app.modules.utils.utils import is_same_host
+from app.modules.utils.utils import map_endpoints, is_same_host
 from app.modules.scanners.discovery.katana.katana_context import KatanaContext
+from app.modules.interfaces.enums.scanners import IContainerScanner
+from app.modules.interfaces.types.options import ScannerTaskResult
 
-# TODO: add support for extracting fillable forms and elements
-class Katana(IHeadlessScanner):
-    _base_report_path: str = f"{Path.cwd()}/app/reports/katana"
-    _prefix: str = "katana"
-    _prefix_headless: str = "katana_headless"
+class Katana(IContainerScanner):
+    report_path = f"{Path.cwd()}/app/reports/katana"
+    scanner_name = "katana"
+    scanner_type = "container"
     _scanner_context: KatanaContext
+    _timeout=600
 
-    def __init__(self): # This object should be gone after the scan
+    def __init__(self):
         self._scanner_context = KatanaContext()
 
     def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting Katana scan: {session_id}")
-        self._scanner_context.primary_host = ctx.primary_host
-        container: Container = self._spawn(session_id, ctx)
-        headless_container: Container = self._spawn_headless(session_id, ctx)
-        result = container.wait()
-        headless_result = headless_container.wait()
-        if result.get("StatusCode") != 0:
-            logger.error(f"Katana has exited abruptly on exit code: {result.get('StatusCode')}")
-            container.remove()
-            raise
-        if headless_result.get("StatusCode") != 0: # crash
-            logger.error(f"Headless Katana has exited abruptly on exit code: {result.get('StatusCode')}")
-            headless_container.remove()
-            raise
-        return self._parse_results(session_id)
+        started = time.monotonic()
+        try:
+            self._scanner_context.primary_host = ctx.primary_host
+            container = self.spawn_container(session_id, ctx)
+            container_result = container.wait(timeout=self._timeout)
+            if container.status == "running": # do not launch a headless scan when not finished
+               sleep(10)
+            headless_container = self.spawn_headless_container(session_id, ctx)
+            headless_result = headless_container.wait(timeout=self._timeout)
+            exit_code = container_result.get("StatusCode")
+            headless_exit_code = headless_result.get("StatusCode")
 
-    def _parse_results(self, session_id: str) -> dict:
+            assert isinstance(container, Container) and isinstance(headless_container, Container)
+
+            logs = container.logs(stdout=True, stderr=True).decode(errors="replace")
+            headless_logs = headless_container.logs(stdout=True, stderr=True).decode(errors="replace")
+
+            if exit_code != 0 or headless_exit_code != 0:
+                logger.error(f"Katana has exited abruptly on exit code: {exit_code}")
+                return ScannerTaskResult(
+                    scanner="katana",
+                    phase="preamble",
+                    status="failed",
+                    result=None,
+                    error=f"Katana exited with code {exit_code}",
+                    stdout=[logs, headless_logs],
+                    stderr=None,
+                    exit_code=exit_code,
+                    runtime_ms=int((time.monotonic() - started) * 1000),
+                ).model_dump()
+
+            parsed = self.parse_results(session_id)
+            return ScannerTaskResult(
+                scanner="katana",
+                phase="preamble",
+                status="success",
+                result=parsed,
+                stdout=[logs, headless_logs],
+                exit_code=exit_code,
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
+
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                status = "timeout"
+            else:
+                status = "failed"
+            return ScannerTaskResult(
+                scanner="katana",
+                phase="preamble",
+                status=status,
+                result=None,
+                error=str(e),
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
+
+        finally:
+            self.cleanup(session_id)
+
+    def parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing Katana results for session: {session_id}")
         hashed_records: list[str] = []
         out_of_scope: list = []
@@ -53,7 +99,7 @@ class Katana(IHeadlessScanner):
             raise
 
         # endpoint validation
-        with open(f"{self._base_report_path}/{session_id}.json") as f:
+        with open(f"{self.report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
                 record = json.loads(line)
                 _endpoint = record["request"].get("endpoint")
@@ -65,7 +111,7 @@ class Katana(IHeadlessScanner):
                 endpoints.append(_endpoint)
                 unique_endpoints.add(_endpoint)
 
-        with open(f"{self._base_report_path}/headless_{session_id}.json") as f:
+        with open(f"{self.report_path}/headless_{session_id}.json") as f:
             for line in f.read().splitlines():
                 record = json.loads(line)
                 _endpoint = record["request"].get("endpoint")
@@ -84,34 +130,34 @@ class Katana(IHeadlessScanner):
             "outOfScope": out_of_scope,
         }
         self._scanner_context.content = content
-        self._cleanup(session_id)
+        self.cleanup(session_id)
         return content
 
-    def _cleanup(self, session_id: str) -> None:
+    def cleanup(self, session_id: str) -> None:
         import docker
         logger.info("Cleaning up Katana artifacts")
 
-        Path(f"{self._base_report_path}/headless_{session_id}.json").unlink(missing_ok=True)
-        Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
+        Path(f"{self.report_path}/headless_{session_id}.json").unlink(missing_ok=True)
+        Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
-            container = client.containers.get(f"{self._prefix}_{session_id}")
+            container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
             container.remove()
-            headless_container = client.containers.get(f"{self._prefix_headless}_{session_id}")
+            headless_container = client.containers.get(f"{self.scanner_name}_headless_{session_id}")
             headless_container.stop(timeout=5)
             headless_container.remove()
         except docker.errors.NotFound:
             logger.warning("Containers could not be found! Skipping cleanup...")
             return
-
-    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
+    
+    def spawn_container(self, session_id: str, ctx: ScanContext) -> Container:
         import docker
-        logger.info(f"Spawning container: {self._prefix}_{container_name}")
+        logger.info(f"Spawning katana container: {self.scanner_name}_{session_id}")
         client = docker.from_env()
         return client.containers.run(
             image="projectdiscovery/katana",
-            name=f"{self._prefix}_{container_name}",
+            name=f"{self.scanner_name}_{session_id}",
             command=[
                 "-or",
                 "-ob",
@@ -120,12 +166,14 @@ class Katana(IHeadlessScanner):
                 "-kf", "all",
                 "-rlm", "10",
                 "-j",
-                "-o", f"/reports/{container_name}.json",
+                "-o", f"/reports/{session_id}.json",
                 "-u", ctx.primary_url,
                 "-silent",
+                # "-H", "Cookie: MoodleSession=81gki0uugm6qig6g1lc2kvc68t",
+                # "-fr", "(?i)logout"
             ],
             volumes={
-                self._base_report_path: {
+                self.report_path: {
                     "bind": "/reports/",
                     "mode": "rw",
                 }
@@ -134,13 +182,14 @@ class Katana(IHeadlessScanner):
             auto_remove=False,
         )
 
-    def _spawn_headless(self, container_name: str, ctx: ScanContext) -> Container:
+    def spawn_headless_container(self, session_id: str, ctx: ScanContext) -> Container:
         import docker
-        logger.info(f"Spawning headless container: {self._prefix_headless}_{container_name}")
+        logger.info(
+            f"Spawning katana headless container: {self.scanner_name}_headless_{session_id}")
         client = docker.from_env()
         return client.containers.run(
             image="projectdiscovery/katana",
-            name=f"{self._prefix_headless}_{container_name}",
+            name=f"{self.scanner_name}_headless_{session_id}",
             command=[
                 "-headless",
                 "-scp", self._scanner_context.headless_chrome_binary,
@@ -152,12 +201,14 @@ class Katana(IHeadlessScanner):
                 "-kf", "all",
                 "-rlm", "10",
                 "-j",
-                "-o", f"/reports/headless_{container_name}.json",
+                "-o", f"/reports/headless_{session_id}.json",
                 "-u", ctx.primary_url,
                 "-silent",
+                # "-H", "Cookie: MoodleSession=81gki0uugm6qig6g1lc2kvc68t",
+                # "-fr", "(?i)logout"
             ],
             volumes={
-                self._base_report_path: {
+                self.report_path: {
                     "bind": "/reports/",
                     "mode": "rw",
                 }

@@ -1,6 +1,6 @@
-from app.modules.interfaces.base import IConfigBuilder
 from app.modules.scanners.web.wapiti.wapiti_types import WapitiFlagDefinition, WapitiConfig
 from app.modules.scanners.web.wapiti.wapiti_enums import WapitiHeadlessValues
+from app.modules.interfaces.enums.scanners import IConfigBuilder
 
 # This should help the code map the correct command to the value
 COMMAND_MAPPING: dict[str, WapitiFlagDefinition] = {

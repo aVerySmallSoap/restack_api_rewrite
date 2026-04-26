@@ -1,7 +1,7 @@
 from typing import Optional
 
 from app.modules.pipeline.context import TechEntry
-from app.modules.interfaces.options import BaseContext
+from app.modules.interfaces.types.options import BaseContext
 
 
 class DiscoveryContext(BaseContext):

@@ -107,6 +107,7 @@ def start_zap_service():
         client.containers.run(
             image="zaproxy/zap-weekly",
             name="restack_zaproxy",
+            network="restack_zap",
             ports={"8090/tcp": 8090},
             environment={
                 "ZAP_JAVA_OPTS": "-Xms512m -Xmx4g"

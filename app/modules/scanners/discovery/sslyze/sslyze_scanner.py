@@ -1,5 +1,7 @@
 import json
+import time
 from datetime import datetime, timezone
+from time import monotonic
 from pathlib import Path
 
 from loguru import logger
@@ -7,10 +9,11 @@ from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanne
     ServerScanResultAsJson
 
 from app.modules.pipeline.context import ScanContext
-from app.modules.interfaces.base import IScanner
+from app.modules.interfaces.enums.scanners import IBaseScanner
+from app.modules.interfaces.types.options import ScannerTaskResult
 
 
-class SSLyze(IScanner):
+class SSLyze(IBaseScanner):
     _base_report_path: str = f"{Path.cwd()}/app/reports/sslyze"
     _prefix = "sslyze"
     _BASELINE_COMMANDS = {
@@ -34,16 +37,18 @@ class SSLyze(IScanner):
         ScanCommand.TLS_EXTENDED_MASTER_SECRET,
     }
 
-    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> ScannerTaskResult:
         logger.info(f"Starting SSLyze scan: {session_id}")
+        started = time.monotonic()
+
         if ctx.primary_url.__contains__("https://"):
             requests = [ServerScanRequest(
-                server_location=ServerNetworkLocation(ctx.primary_url.removeprefix("https://"), 443),
+                server_location=ServerNetworkLocation(ctx.primary_host, 443),
                 scan_commands=self._BASELINE_COMMANDS
             )]
         else:
             requests = [ServerScanRequest(
-                server_location=ServerNetworkLocation(ctx.primary_url.removeprefix("http://"), 80),
+                server_location=ServerNetworkLocation(ctx.primary_host, 80),
                 scan_commands=self._BASELINE_COMMANDS
             )]
 
@@ -67,12 +72,19 @@ class SSLyze(IScanner):
             date_scans_completed=date_scans_completed,
         )
 
-        json_str = json_output.model_dump_json(indent=2)
-        Path(f"{self._base_report_path}/{session_id}.json").write_text(json_str)
-        return json.loads(json_str)
+        Path(f"{self._base_report_path}/{session_id}.json").write_text(json_output.model_dump_json())
+        return ScannerTaskResult(
+            scanner="sslyze",
+            phase="asset",
+            status="success",
+            result=json_output.model_dump(),
+            stdout=None,
+            exit_code=None,
+            runtime_ms=int((time.monotonic() - started) * 1000),
+        ).model_dump()
 
-    def _parse_results(self, session_id: str) -> dict:
+    def parse_results(self, session_id: str) -> dict:
         pass
 
-    def _cleanup(self, session_id: str) -> None:
+    def cleanup(self, session_id: str) -> None:
         pass

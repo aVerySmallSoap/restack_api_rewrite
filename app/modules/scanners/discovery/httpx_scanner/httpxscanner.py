@@ -1,35 +1,74 @@
 import json
+import time
 from pathlib import Path
 
 from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.pipeline.context import TechEntry, ScanContext
-from app.modules.interfaces.base import IContainerScanner
+from app.modules.interfaces.enums.scanners import IContainerScanner
+from app.modules.interfaces.types.options import ScannerTaskResult
 
 
 class HttpxScanner(IContainerScanner):
-    _base_report_path: str = f"{Path.cwd()}/app/reports/httpx"
-    _prefix: str = "httpx"
+    report_path = f"{Path.cwd()}/app/reports/httpx"
+    scanner_name = "httpx"
+    scanner_type = "container"
 
     def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting HTTPX scan: {session_id}")
+        started = time.monotonic()
+        try:
+            container = self.spawn_container(session_id, ctx)
+            result = container.wait()
+            exit_code = result.get('StatusCode')
+            logs = container.logs(stdout=True, stderr=True).decode(errors="replace")
+            if exit_code != 0:
+                logger.error(f"HTTPX has exited abruptly on exit code: {exit_code}")
+                return ScannerTaskResult(
+                    scanner="httpx",
+                    phase="liveliness",
+                    status="failed",
+                    result=None,
+                    error=f"httpx exited with code {exit_code}",
+                    stdout=logs,
+                    stderr=None,
+                    exit_code=exit_code,
+                    runtime_ms=int((time.monotonic() - started) * 1000),
+                ).model_dump()
 
-        container = self._spawn(session_id, ctx)
-        result = container.wait()
-        if result.get('StatusCode') != 0:
-            # throw logs and errors
-            logger.error(f"HTTPX has exited abruptly on exit code: {result.get('StatusCode')}")
-            container.remove()
-            raise
-        return self._parse_results(session_id)
+            parsed = self.parse_results(session_id)
+            return ScannerTaskResult(
+                scanner="httpx",
+                phase="liveliness",
+                status="success",
+                result=parsed,
+                stdout=logs,
+                exit_code=exit_code,
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                status = "timeout"
+            else:
+                status = "failed"
+            return ScannerTaskResult(
+                scanner="httpx",
+                phase="liveliness",
+                status=status,
+                result=None,
+                error=str(e),
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
 
-    def _parse_results(self, session_id: str) -> dict:
+        finally:
+            self.cleanup(session_id)
+
+    def parse_results(self, session_id: str) -> dict:
         # TODO: The scanner involves some custom keys for different CMS', explore and add them later
-        # Important keys: tls, tech, cpe
         logger.info(f"Parsing HTTPX results for session: {session_id}")
         technologies_list: list[TechEntry] = []
-        with open(f"{self._base_report_path}/{session_id}.json") as f:
+        with open(f"{self.report_path}/{session_id}.json") as f:
             for line in f.read().splitlines():
                 json_line: dict = json.loads(line) # I do not know yet if this will change into an array if multiple urls are fed
                 if json_line.get("failed"):
@@ -57,33 +96,33 @@ class HttpxScanner(IContainerScanner):
         # after everything is done, store it on content
         cpe = json_line.get("cpe")
         assert isinstance(cpe, list)
-        content = {
-            "technologies": [entry.model_dump() for entry in technologies_list],
+        content = { # TODO: Something is wrong when dumping this
+            # "technologies": [entry.model_dump() for entry in technologies_list],
+            "technologies": technologies_list,
             "cpe": [ entry["cpe"] for entry in cpe],
             "tls": json_line.get("tls"),
         }
-        self._cleanup(session_id)
         return content
 
-    def _cleanup(self, session_id: str) -> None:
+    def cleanup(self, session_id: str) -> None:
         import docker
         logger.info("Cleaning up HTTPX artifacts")
         # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
-            container = client.containers.get(f"{self._prefix}_{session_id}")
+            container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
+            logger.warning(f"Could not find container with ID: {self.scanner_name}_{session_id}. Skipping cleanup")
 
-    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
+    def spawn_container(self, session_id: str, ctx: ScanContext) -> Container:
         import docker
-        logger.info(f"Spawning container: {self._prefix}_{container_name}")
+        logger.info(f"Spawning container: {self.scanner_name}_{session_id}")
         client = docker.from_env()
         return client.containers.run(
             image="projectdiscovery/httpx",
-            name=f"{self._prefix}_{container_name}",
+            name=f"{self.scanner_name}_{session_id}",
             command=[
                 "-delay", "5s",
                 "-pipeline",
@@ -100,11 +139,11 @@ class HttpxScanner(IContainerScanner):
                 "-tls-grab",
                 "-irh",
                 "-j",
-                "-o", f"/reports/{container_name}.json",
+                "-o", f"/reports/{session_id}.json",
                 "-u", ctx.primary_url
             ],
             volumes={
-                self._base_report_path: {
+                self.report_path: {
                     "bind": "/reports/",
                     "mode": "rw",
                 }
@@ -112,3 +151,6 @@ class HttpxScanner(IContainerScanner):
             detach=True,
             auto_remove=False,
         )
+
+    def spawn_headless_container(self, session_id: str, ctx: ScanContext) -> Container:
+        raise NotImplementedError

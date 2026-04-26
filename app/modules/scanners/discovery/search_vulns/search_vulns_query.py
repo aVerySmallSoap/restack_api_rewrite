@@ -1,43 +1,87 @@
 import json
 import subprocess
+import time
 from pathlib import Path
 
 from loguru import logger
 
-from app.modules.interfaces.base import IScanner
 from app.modules.utils.utils import compile_and_parse_to_search_vuln_queriable, resolve_tech_to_tech_entry
 from app.modules.pipeline.context import ScanContext, redis_client
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
+from app.modules.interfaces.enums.scanners import ICliScanner
+from app.modules.interfaces.types.options import ScannerTaskResult
 
 
-class SearchVulnsQuery(IScanner):
-    _base_report_path = f"{Path.cwd()}/app/reports/search_vulns"
+class SearchVulnsQuery(ICliScanner):
+    report_path = f"{Path.cwd()}/app/reports/search_vulns"
+    scanner_name = "search_vulns"
+    scanner_type = "cli"
     _commands: list[str] = ["search_vulns", "-f", "json", "--output"]
     _discovery_context: DiscoveryContext
+    _timeout=300
 
-    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> ScannerTaskResult:
         logger.info(f"Querying vulnerabilities related to the discovered technologies on: {session_id}")
-        self._commands.append(f"{self._base_report_path}/{session_id}.json")
-        raw = redis_client.get(f"discovery:{session_id}")
-        if raw is None:
-            raise ValueError(f"Missing discovery context for session {session_id}")
-        self._discovery_context: DiscoveryContext = DiscoveryContext.model_validate_json(raw)
-        assert self._discovery_context.technologies is not None
+        started = time.monotonic()
         try:
-            process = subprocess.Popen(
+            self._commands.append(f"{self.report_path}/{session_id}.json")
+            raw = redis_client.get(f"discovery:{session_id}")
+            if raw is None:
+                raise ValueError(f"Missing discovery context for session {session_id}")
+            self._discovery_context: DiscoveryContext = DiscoveryContext.model_validate_json(raw)
+            assert self._discovery_context.technologies is not None
+
+            process = subprocess.run(
                 compile_and_parse_to_search_vuln_queriable(
                     self._discovery_context.technologies,
                     self._commands),
-                stdout=subprocess.PIPE)
-            process.wait()
+                capture_output=True,
+                text=True,
+                timeout=self._timeout,
+                check=False
+            )
             if process.returncode != 0:
                 raise subprocess.SubprocessError
-        except subprocess.SubprocessError:
-            pass
-        return self._parse_results(session_id)
 
-    def _parse_results(self, session_id: str) -> dict:
-        with open(f"{self._base_report_path}/{session_id}.json") as f:
+            return ScannerTaskResult(
+                scanner=self.scanner_name,
+                phase="vuln_query",
+                status="success",
+                result=self.parse_results(session_id),
+                stdout=process.stdout,
+                exit_code=process.returncode,
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
+        except subprocess.TimeoutExpired as e:
+            return ScannerTaskResult(
+                scanner=self.scanner_name,
+                phase="vuln_query",
+                status="timeout",
+                result=None,
+                error=f"{self.scanner_name} exceeded timeout",
+                stdout=str(e.stdout),
+                stderr=str(e.stderr),
+                runtime_ms=int((time.monotonic() - started) * 1000)
+            ).model_dump()
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                status = "timeout"
+            else:
+                status = "failed"
+            return ScannerTaskResult(
+                scanner="whatweb",
+                phase="asset",
+                status=status,
+                result=None,
+                error=str(e),
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
+        finally:
+            # self.cleanup(session_id)
+            pass
+
+    def parse_results(self, session_id: str) -> dict:
+        with open(f"{self.report_path}/{session_id}.json") as f:
             json_data = json.load(f)
             _returnable = []
             for tech, info in json_data.items():
@@ -46,11 +90,12 @@ class SearchVulnsQuery(IScanner):
                 _returnable.append({tech: info})
         self._discovery_context.queried_vulnerabilities = _returnable
         redis_client.set(f"discovery:{session_id}", self._discovery_context.model_dump_json())
-        with open(f"{Path.cwd()}/app/reports/test.json", "w") as f:
-            f.write(json.dumps(self._discovery_context.model_dump_json(), indent=4))
         return {
             "vulnerable_technologies": _returnable
         }
 
-    def _cleanup(self, session_id: str) -> None:
+    def cleanup(self, session_id: str) -> None:
+        pass
+
+    def build_command(self, session_id: str, ctx: ScanContext) -> list[str]:
         pass

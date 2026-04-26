@@ -1,35 +1,85 @@
 import json
-from pathlib import Path
 
+from billiard import TimeLimitExceeded
 from loguru import logger
 
-from app.modules.celery_app import celery_app
-from app.modules.pipeline.context import ScanContext, redis_client, TechEntry
+from app.services.celery_app import celery_app
+from app.modules.pipeline.context import ScanContext, redis_client
 from app.modules.scanners.discovery import (
     SSLyze, WhatWeb, WappalyzerNext
 )
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.utils.utils import tech_to_cpe, resolve_tech_to_tech_entry
+from app.modules.interfaces.types.options import ScannerTaskResult
 
 
-@celery_app.task(bind=True)
+@celery_app.task(
+    bind=True,
+    soft_time_limit=240,
+    time_limit=300,
+)
 def task_sslyze(self, liveliness_ctx: str, session_id: str, ctx_json: str) -> dict:
-    ctx = ScanContext(**json.loads(ctx_json))
-    return {"type": "sslyze", "result": SSLyze().start_scan(session_id, ctx)}
+    try:
+        ctx = ScanContext(**json.loads(ctx_json))
+        return {"type": "sslyze", "result": SSLyze().start_scan(session_id, ctx)}
+    except TimeLimitExceeded:
+        return ScannerTaskResult(
+            scanner="sslyze",
+            phase="asset",
+            status="timeout",
+            result=None,
+            error="Celery time limit exceeded",
+            runtime_ms=300
+        ).model_dump()
+
 
 # Phase 1.1: Technology Discovery
 
-@celery_app.task(bind=True)
+@celery_app.task(
+    bind=True,
+    soft_time_limit=240,
+    time_limit=300,
+)
 def task_whatweb(self, liveliness_ctx: str, session_id: str, ctx_json: str) -> dict:
-    ctx = ScanContext(**json.loads(ctx_json))
-    return {"type": "whatweb", "result": WhatWeb().start_scan(session_id, ctx)}
+    try:
+        ctx = ScanContext(**json.loads(ctx_json))
+        return {"type": "whatweb", "result": WhatWeb().start_scan(session_id, ctx)}
+    except TimeLimitExceeded:
+        return ScannerTaskResult(
+            scanner="whatweb",
+            phase="asset",
+            status="timeout",
+            result=None,
+            error="Celery time limit exceeded",
+            runtime_ms=300
+        ).model_dump()
 
-@celery_app.task(bind=True)
+@celery_app.task(
+    bind=True,
+    soft_time_limit=240,
+    time_limit=300,
+)
 def task_wappalyzer(self, liveliness_ctx: str, session_id: str, ctx_json: str) -> dict:
-    ctx = ScanContext(**json.loads(ctx_json))
-    return {"type": "wappalyzer", "result": WappalyzerNext().start_scan(session_id, ctx)}
+    try:
+        ctx = ScanContext(**json.loads(ctx_json))
+        return {"type": "wappalyzer", "result": WappalyzerNext().start_scan(session_id, ctx)}
+    except TimeLimitExceeded:
+        return ScannerTaskResult(
+            scanner="wappalyzer",
+            phase="asset",
+            status="timeout",
+            result=None,
+            error="Celery time limit exceeded",
+            runtime_ms=300
+        ).model_dump()
 
-@celery_app.task(bind=True)
+    ctx = ScanContext(**json.loads(ctx_json))
+
+@celery_app.task(
+    bind=True,
+    soft_time_limit=240,
+    time_limit=300,
+)
 def task_build_asset_context(self, results: list[dict], session_id: str):
     # Create the preamble context
     # The only requirement for the next phase is subfinder discoveries. If None, HTTPX should just check the main domain
@@ -40,21 +90,27 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
     try:
         assert results is not None
         for result in results:
-            match result["type"]:
+            item = ScannerTaskResult.model_validate(result.get("result"))
+            assert item is not None
+            if item.status != "success":
+                logger.warning(f"{item.scanner} skipped. Errors: {item.error}")
+                continue
+
+            match item.scanner:
                 case "sslyze":
                     pass
                 case "whatweb":
                     assert discovery_ctx.cpes is not None
                     assert discovery_ctx.technologies is not None
-                    assert result["result"] is not None
-                    discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(result["result"]["technologies"]))
-                    discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(result["result"]["technologies"])))
+                    assert item.result is not None
+                    discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(item.result["technologies"]))
+                    discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
                 case "wappalyzer":
                     assert discovery_ctx.cpes is not None
                     assert discovery_ctx.technologies is not None
-                    assert result["result"] is not None
-                    discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(result["result"]["technologies"]))
-                    discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(result["result"]["technologies"])))
+                    assert item.result is not None
+                    discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(item.result["technologies"]))
+                    discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
     except AssertionError as e:
         logger.error("An object has an unexpected value!")
         logger.exception(e)

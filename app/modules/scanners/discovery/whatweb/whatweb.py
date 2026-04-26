@@ -1,41 +1,82 @@
 import json
+import time
 from pathlib import Path
 
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import ScanContext
-from app.modules.interfaces.base import IHeadlessScanner
-from app.modules.pipeline.context import TechEntry
+from app.modules.pipeline.context import ScanContext, TechEntry
+from app.modules.interfaces.enums.scanners import IContainerScanner
+from app.modules.interfaces.types.options import ScannerTaskResult
 
 
 # noinspection D
-class WhatWeb(IHeadlessScanner):
-    _base_report_path: str = f"{Path.cwd()}/app/reports/whatweb"
-    _prefix = "whatweb"
+class WhatWeb(IContainerScanner):
+    report_path = f"{Path.cwd()}/app/reports/whatweb"
+    scanner_name = "whatweb"
+    scanner_type = "container"
+    _timeout=300
 
     def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting WhatWeb scan: {session_id}")
-        container = self._spawn(session_id, ctx)
+        started = time.monotonic()
+        try:
+            container = self.spawn_container(session_id, ctx)
+            result = container.wait(timeout=self._timeout)
+            exit_code = result.get("StatusCode")
+            logs = container.logs(stdout=True, stderr=True).decode(errors="replace")
 
-        result = container.wait()
-        exit_code = result["StatusCode"]
+            if exit_code != 0:
+                logger.debug(f"WhatWeb exited abruptly! Exit code: {exit_code}")
+                return ScannerTaskResult(
+                    scanner="whatweb",
+                    phase="asset",
+                    status="failed",
+                    result=None,
+                    error=f"WhatWeb exited with code {exit_code}",
+                    stdout=logs,
+                    stderr=None,
+                    exit_code=exit_code,
+                    runtime_ms=int((time.monotonic() - started) * 1000),
+                ).model_dump()
 
-        if exit_code != 0:
-            logger.debug(f"WhatWeb exited abruptly! Exit code: {exit_code}")
-            container.remove()
-            raise RuntimeError(f"WhatWeb failed with exit code {exit_code}")
-        container.remove()
-        return self._parse_results(session_id)
+            parsed = self.parse_results(session_id)
+            return ScannerTaskResult(
+                scanner="whatweb",
+                phase="asset",
+                status="success",
+                result=parsed,
+                stdout=logs,
+                exit_code=exit_code,
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
 
-    def _parse_results(self, session_id: str) -> dict:
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                status = "timeout"
+            else:
+                status = "failed"
+            return ScannerTaskResult(
+                scanner="whatweb",
+                phase="asset",
+                status=status,
+                result=None,
+                error=str(e),
+                runtime_ms=int((time.monotonic() - started) * 1000),
+            ).model_dump()
+
+        finally:
+            # self.cleanup(session_id)
+            pass
+
+    def parse_results(self, session_id: str) -> dict:
         logger.info(f"Parsing WhatWeb results for session: {session_id}")
         _excluded = ["UncommonHeaders", "Open-Graph-Protocol", "Title", "Frame", "Script", "HTML5"]
         _trivial = ["Email", "Script", "IP", "Country", "HTTPServer"]
         _tech: list[TechEntry] = []
         _cookies = []
         _extra = []
-        with open(f"{self._base_report_path}/{session_id}.json", "r+") as f:
+        with open(f"{self.report_path}/{session_id}.json", "r+") as f:
             report = json.load(f)
             if len(report) <= 0 or report is None:
                 return None
@@ -79,40 +120,40 @@ class WhatWeb(IHeadlessScanner):
                             categories=None
                         )
                     )
-        self._cleanup(session_id)
+        self.cleanup(session_id)
         return {
             "technologies": [entry.model_dump() for entry in _tech],
             "cookies": _cookies,
             "extra": _extra,
         }
 
-    def _cleanup(self, session_id: str) -> None:
+    def cleanup(self, session_id: str) -> None:
         import docker
         logger.info("Cleaning up WhatWeb artifacts")
         # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker.from_env()
         try:
-            container = client.containers.get(f"{self._prefix}_{session_id}")
+            container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
             container.remove()
         except docker.errors.NotFound:
-            logger.warning(f"Could not find container with ID: {self._prefix}_{session_id}. Skipping cleanup")
+            logger.warning(f"Could not find container with ID: {self.scanner_name}_{session_id}. Skipping cleanup")
 
-    def _spawn(self, container_name: str, ctx: ScanContext) -> Container:
+    def spawn_container(self, session_id: str, ctx: ScanContext) -> Container:
         import docker
-        logger.info(f"Spawning container: {self._prefix}_{container_name}")
+        logger.info(f"Spawning container: {self.scanner_name}_{session_id}")
         client = docker.from_env()
         return client.containers.run(
             image="localhost/whatweb",
-            name=f"{self._prefix}_{container_name}",
+            name=f"{self.scanner_name}_{session_id}",
             command=[
                 "./whatweb",
                 "-a", "3",
-                "--log-json", f"/reports/{container_name}.json",
+                "--log-json", f"/reports/{session_id}.json",
                 ctx.primary_url
             ],
             volumes={
-                self._base_report_path: {
+                self.report_path: {
                     "bind": "/reports/",
                     "mode": "rw",
                 }
@@ -121,8 +162,8 @@ class WhatWeb(IHeadlessScanner):
             auto_remove=False,
         )
 
-    def _spawn_headless(self, container_name: str, ctx: ScanContext) -> Container:
-        pass
+    def spawn_headless_container(self, session_id: str, ctx: ScanContext) -> Container:
+        raise NotImplementedError
 
     @staticmethod
     def _parse_meta_generator(meta_data: dict, technologies: list):

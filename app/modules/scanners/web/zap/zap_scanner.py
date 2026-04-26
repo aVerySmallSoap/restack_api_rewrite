@@ -1,62 +1,99 @@
 import os
+import time
 from pathlib import Path
 
+from loguru import logger
 from zapv2 import ZAPv2
 
-from app.modules.interfaces.base import IScanner
 from app.modules.scanners.web.zap.zap_context import ZapContext, ZapScanProfiles
 from app.modules.pipeline.context import ScanContext
+from app.modules.interfaces.enums.scanners import IAPIScanner
+from app.modules.interfaces.types.options import ScannerTaskResult
 
 
 # This class might communicate with containers, but the class itself does not spawn them
-class ZapScanner(IScanner):
+class ZapScanner(IAPIScanner):
+    report_path = f"{Path.cwd()}/app/reports/zap"
+    scanner_name = "zap"
+    scanner_type = "api"
     _zap_instance: ZAPv2
-    _base_report_path = f"{Path.cwd()}/app/reports/zap"
-    _prefix = "zap"
     _scanner_context: ZapContext
+    _started: float
+    _timeout = 18_000
 
     def __init__(self):
         self._zap_instance = ZAPv2(apikey=os.getenv("ZAP_API_KEY"), proxies={"http": "http://127.0.0.1:8090"})
         self._scanner_context = ZapContext()
 
-    def start_scan(self, session_id: str, ctx: ScanContext) -> dict: # This should not use discovery context but WebContext
-        # Context building
-        self._zap_instance.context.new_context(session_id)
-        self._zap_instance.context.include_in_context(session_id, ctx.primary_url)
-        self._zap_instance.context.include_all_context_technologies(session_id)
-        # Try to catch everything
-        if not ctx.primary_url.endswith("/"):
-            self._zap_instance.context.include_in_context(session_id, ctx.primary_url + "/.*")
-        else:
-            self._zap_instance.context.include_in_context(session_id, ctx.primary_url + ".*")
+    def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
+        logger.info(f"Starting a ZAP scan: {session_id}")
+        self._started = time.monotonic()
 
-        # headless configuration
-        self._zap_instance.selenium.add_browser_argument("firefox", "--headless", True)
+        try:
+            # Context building
+            self._zap_instance.context.new_context(session_id, apikey=os.getenv("ZAP_API_KEY"))
+            self._zap_instance.context.include_in_context(session_id, ctx.primary_url)
+            self._zap_instance.context.include_all_context_technologies(session_id)
+            # Try to catch everything
+            if not ctx.primary_url.endswith("/"):
+                self._zap_instance.context.include_in_context(session_id, ctx.primary_url + "/.*")
+            else:
+                self._zap_instance.context.include_in_context(session_id, ctx.primary_url + ".*")
 
-        # Scanners
-        sitemap = self._start_trad_active_and_client_spider(session_id, ctx)
-        passive_alerts = self._start_passive_attack(ctx)
-        active_alerts = self._start_active_attack(session_id, ctx)
-        self._zap_instance.core.jsonreport()
-        self._zap_instance.context.remove_context(session_id)
+            # headless configuration
+            self._zap_instance.selenium.add_browser_argument("firefox", "--headless", True)
 
-        with open(f"{self._base_report_path}/{session_id}.json", "w") as f:
-            # temporary write
-            import json
-            f.write(json.dumps({
-                "sitemap": sitemap,
-                "alerts": {
-                    "passive": passive_alerts,
-                    "active": active_alerts
-                }
-            }, indent=4))
-        return self._parse_results(session_id)
+            # Scanners
+            sitemap = self._start_trad_active_and_client_spider(session_id, ctx)
+            passive_alerts = self._start_passive_attack(ctx)
+            active_alerts = self._start_active_attack(session_id, ctx)
+            self._zap_instance.core.jsonreport()
+            self._zap_instance.context.remove_context(session_id)
 
-    def _parse_results(self, session_id: str) -> dict:
+            with open(f"{self.report_path}/{session_id}.json", "w") as f:
+                # temporary write
+                import json
+                f.write(json.dumps({
+                    "sitemap": sitemap,
+                    "alerts": {
+                        "passive": passive_alerts,
+                        "active": active_alerts
+                    }
+                }, indent=4))
+
+            parsed = self.parse_results(session_id)
+            return ScannerTaskResult(
+                scanner=self.scanner_name,
+                phase="attack",
+                status="success",
+                result=self.parse_results(session_id),
+                runtime_ms=(time.monotonic() - self._started) * 1000,
+            ).model_dump()
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                status = "timeout"
+            else:
+                status = "failed"
+            return ScannerTaskResult(
+                scanner=self.scanner_name,
+                phase="attack",
+                status=status,
+                result=None,
+                error=str(e),
+                runtime_ms=(time.monotonic() - self._started) * 1000,
+            ).model_dump()
+
+    def parse_results(self, session_id: str) -> dict:
         # self._zap_instance.core.delete_all_alerts()
         pass
 
-    def _cleanup(self, session_id: str) -> None:
+    def cleanup(self, session_id: str) -> None:
+        pass
+
+    def submit_scan(self, session_id: str, ctx: ScanContext) -> str:
+        pass
+
+    def poll_scan(self, scan_ref: str) -> dict:
         pass
 
     def _start_trad_active_and_client_spider(self, session_id:str, ctx: ScanContext):
@@ -115,7 +152,6 @@ class ZapScanner(IScanner):
             while int(self._zap_instance.spider.status(scan_id)) < 100:
                 sleep(5)
             logger.success("traditional spider completed")
-            print(f"Trad tree: {self._zap_instance.spider.results(scan_id)}")
 
             self._zap_instance.ajaxSpider.scan(
                 url=ctx.primary_url,
