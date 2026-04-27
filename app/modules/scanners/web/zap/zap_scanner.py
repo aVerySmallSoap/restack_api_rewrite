@@ -44,12 +44,14 @@ class ZapScanner(IAPIScanner):
             self._zap_instance.selenium.add_browser_argument("firefox", "--headless", True)
 
             # Scanners
-            sitemap = self._start_trad_active_and_client_spider(session_id, ctx)
-            passive_alerts = self._start_passive_attack(ctx)
-            active_alerts = self._start_active_attack(session_id, ctx)
-            self._zap_instance.core.jsonreport()
-            self._zap_instance.context.remove_context(session_id)
+            self._start_trad_active_and_client_spider(session_id, ctx)
+            sitemap = self._zap_instance.core.urls(baseurl=ctx.primary_host)
+            self._start_passive_attack()
+            passive_alerts =self._zap_instance.core.alerts(baseurl=ctx.primary_host)
+            self._start_active_attack(session_id, ctx)
+            active_alerts =self._zap_instance.core.alerts(baseurl=ctx.primary_host)
 
+            self._zap_instance.context.remove_context(session_id)
             with open(f"{self.report_path}/{session_id}.json", "w") as f:
                 # temporary write
                 import json
@@ -66,8 +68,8 @@ class ZapScanner(IAPIScanner):
                 scanner=self.scanner_name,
                 phase="attack",
                 status="success",
-                result=self.parse_results(session_id),
-                runtime_ms=(time.monotonic() - self._started) * 1000,
+                result=parsed,
+                runtime_ms=(time.monotonic() - self._started) * 1_000,
             ).model_dump()
         except Exception as e:
             if "timeout" in str(e).lower():
@@ -80,7 +82,7 @@ class ZapScanner(IAPIScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=(time.monotonic() - self._started) * 1000,
+                runtime_ms=(time.monotonic() - self._started) * 1_000,
             ).model_dump()
 
     def parse_results(self, session_id: str) -> dict:
@@ -176,13 +178,11 @@ class ZapScanner(IAPIScanner):
             while int(self._zap_instance.clientSpider.status(scan_id)) < 100:
                 sleep(5)
             logger.success("client spider completed")
-            # Dump site maps and all the good things here
-            return self._zap_instance.core.urls(baseurl=ctx.primary_host)
         except Exception as e:
             logger.error("Something happened to zap!")
             raise e
 
-    def _start_passive_attack(self, ctx: ScanContext):
+    def _start_passive_attack(self):
         from loguru import logger
         from time import sleep
         try:
@@ -191,9 +191,6 @@ class ZapScanner(IAPIScanner):
             self._zap_instance.pscan.enable_all_tags()
             while int(self._zap_instance.pscan.records_to_scan) > 0:
                 sleep(5)
-            alerts = self._zap_instance.core.alerts(baseurl=ctx.primary_host)
-            print(alerts)
-            return alerts
         except Exception as e:
             logger.error("Something happened to zap!")
             raise e
@@ -217,9 +214,6 @@ class ZapScanner(IAPIScanner):
             while int(self._zap_instance.ascan.status(scan_id)) < 100:
                 sleep(5)
             logger.success("active scan completed")
-            alerts = self._zap_instance.core.alerts(baseurl=ctx.primary_host)
-            print(alerts)
-            return alerts
         except Exception as e:
             logger.error("Something happened to zap!")
             raise e

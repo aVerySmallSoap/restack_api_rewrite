@@ -52,7 +52,7 @@ class WapitiScanner(ICliScanner):
                 result=self.parse_results(session_id),
                 stdout=process.stdout,
                 exit_code=process.returncode,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         except subprocess.TimeoutExpired as e:
             return ScannerTaskResult(
@@ -63,7 +63,7 @@ class WapitiScanner(ICliScanner):
                 error=f"{self.scanner_name} exceeded timeout",
                 stdout=str(e.stdout),
                 stderr=str(e.stderr),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         except Exception as e:
             if "timeout" in str(e).lower():
@@ -76,11 +76,10 @@ class WapitiScanner(ICliScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         finally:
-            # self.cleanup(session_id)
-            pass
+            self.cleanup(session_id)
 
 
     def parse_results(self, session_id: str) -> dict:

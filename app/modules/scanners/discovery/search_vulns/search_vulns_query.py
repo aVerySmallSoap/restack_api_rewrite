@@ -5,7 +5,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from app.modules.utils.utils import compile_and_parse_to_search_vuln_queriable
+from app.modules.utils.utils import compile_and_parse_to_search_vuln_queriable, is_file_empty
 from modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.interfaces.enums.scanners import ICliScanner
@@ -50,7 +50,7 @@ class SearchVulnsQuery(ICliScanner):
                 result=self.parse_results(session_id),
                 stdout=process.stdout,
                 exit_code=process.returncode,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         except subprocess.TimeoutExpired as e:
             return ScannerTaskResult(
@@ -61,7 +61,7 @@ class SearchVulnsQuery(ICliScanner):
                 error=f"{self.scanner_name} exceeded timeout",
                 stdout=str(e.stdout),
                 stderr=str(e.stderr),
-                runtime_ms=int((time.monotonic() - started) * 1000)
+                runtime_ms=(time.monotonic() - started) * 1_000
             ).model_dump()
         except Exception as e:
             if "timeout" in str(e).lower():
@@ -74,25 +74,36 @@ class SearchVulnsQuery(ICliScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         finally:
             # self.cleanup(session_id)
             pass
-
-    def parse_results(self, session_id: str) -> dict:
-        with open(f"{self.report_path}/{session_id}.json") as f:
-            json_data = json.load(f)
-            _returnable = []
-            for tech, info in json_data.items():
-                if type(info) is str:
-                    continue
-                _returnable.append({tech: info})
-        self._discovery_context.queried_vulnerabilities = _returnable
-        redis_client.set(f"discovery:{session_id}", self._discovery_context.model_dump_json())
-        return {
-            "vulnerable_technologies": _returnable
-        }
+    def parse_results(self, session_id: str) -> dict | None:
+        logger.info(f"Parsing search_vulns queries for session: {session_id}")
+        path = f"{self.report_path}/{session_id}.json"
+        try:
+            if is_file_empty(path):
+                raise RuntimeWarning
+            with open(path, "r") as f:
+                json_data = json.load(f)
+                _returnable = []
+                for tech, info in json_data.items():
+                    if type(info) is str:
+                        continue
+                    _returnable.append({tech: info})
+            self._discovery_context.queried_vulnerabilities = _returnable
+            redis_client.set(f"discovery:{session_id}", self._discovery_context.model_dump_json())
+            return {
+                "vulnerable_technologies": _returnable
+            }
+        except RuntimeWarning:
+            logger.warning("Search_Vulns report file empty! Was there any scanner errors?")
+            return None
+        except AssertionError as e:
+            logger.error("Search_Vulns parsing has encountered an unexpected type!")
+            logger.exception(e)
+            raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:
         pass

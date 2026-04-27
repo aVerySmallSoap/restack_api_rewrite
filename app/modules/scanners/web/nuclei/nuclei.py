@@ -31,28 +31,28 @@ class Nuclei(IContainerScanner):
             assert isinstance(container, Container)
             logs = container.logs(stdout=True, stderr=True).decode(errors="replace")
             if exit_code != 0:
-                logger.error(f"Katana has exited abruptly on exit code: {exit_code}")
+                logger.error(f"Nuclei has exited abruptly on exit code: {exit_code}")
                 return ScannerTaskResult(
-                    scanner="katana",
-                    phase="preamble",
+                    scanner="nuclei",
+                    phase="attack",
                     status="failed",
                     result=None,
-                    error=f"Katana exited with code {exit_code}",
+                    error=f"Nuclei exited with code {exit_code}",
                     stdout=logs,
                     stderr=None,
                     exit_code=exit_code,
-                    runtime_ms=int((time.monotonic() - started) * 1000),
+                    runtime_ms=(time.monotonic() - started) * 1_000,
                 ).model_dump()
 
             parsed = self.parse_results(session_id)
             return ScannerTaskResult(
-                scanner="katana",
-                phase="preamble",
+                scanner="nuclei",
+                phase="attack",
                 status="success",
                 result=parsed,
                 stdout=logs,
                 exit_code=exit_code,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         except Exception as e:
             if "timeout" in str(e).lower():
@@ -65,19 +65,31 @@ class Nuclei(IContainerScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         finally:
-            # self.cleanup(session_id)
-            pass
+            self.cleanup(session_id)
 
     def parse_results(self, session_id: str) -> dict:
         # TODO: implement
         pass
 
     def cleanup(self, session_id: str) -> None:
-        # TODO: implement
-        pass
+        from docker import errors as docker_errors, from_env as docker_env
+        logger.info("Cleaning up Nuclei artifacts")
+        # Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
+        # Path(f"{self.report_path}/headless_{session_id}.json").unlink(missing_ok=True)
+        client = docker_env()
+        try:
+            container = client.containers.get(f"{self.scanner_name}_{session_id}")
+            container.stop(timeout=5)
+            container.remove()
+            # headless_container = client.containers.get(f"{self.scanner_name}_headless_{session_id}")
+            # headless_container.stop(timeout=5)
+            # headless_container.remove()
+        except docker_errors.NotFound:
+            logger.warning("Containers could not be found! Skipping cleanup...")
+            return
 
     def spawn_container(self, session_id: str, ctx: ScanContext) -> Container:
         import docker
