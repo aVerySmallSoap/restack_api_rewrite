@@ -5,9 +5,10 @@ from pathlib import Path
 from docker.models.containers import Container
 from loguru import logger
 
-from modules.interfaces.types.context import TechEntry, ScanContext
+from app.modules.interfaces.types.context import TechEntry, ScanContext
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
+from app.modules.utils.utils import is_file_empty
 
 
 class HttpxScanner(IContainerScanner):
@@ -34,7 +35,7 @@ class HttpxScanner(IContainerScanner):
                     stdout=logs,
                     stderr=None,
                     exit_code=exit_code,
-                    runtime_ms=int((time.monotonic() - started) * 1000),
+                    runtime_ms=(time.monotonic() - started) * 1_000,
                 ).model_dump()
 
             parsed = self.parse_results(session_id)
@@ -45,7 +46,7 @@ class HttpxScanner(IContainerScanner):
                 result=parsed,
                 stdout=logs,
                 exit_code=exit_code,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         except Exception as e:
             if "timeout" in str(e).lower():
@@ -58,62 +59,72 @@ class HttpxScanner(IContainerScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         finally:
             self.cleanup(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    #noinspection D
+    def parse_results(self, session_id: str) -> dict | None:
         # TODO: The scanner involves some custom keys for different CMS', explore and add them later
         logger.info(f"Parsing HTTPX results for session: {session_id}")
         technologies_list: list[TechEntry] = []
-        with open(f"{self.report_path}/{session_id}.json") as f:
-            for line in f.read().splitlines():
-                json_line: dict = json.loads(line) # I do not know yet if this will change into an array if multiple urls are fed
-                if json_line.get("failed"):
-                    return None
-                technologies = json_line.get("tech")
-                if not json_line:
-                    continue # may be a break or return when empty. Need to test
-                assert isinstance(technologies, list)
-                for tech in technologies:
-                    # each entry is a string with a structure of name:version
-                    arr = tech.split(":") if tech.__contains__(":") else [tech]
-                    if len(arr) == 1:
+        report_path = f"{self.report_path}/{session_id}.json"
+
+        try:
+            if is_file_empty(report_path):
+                raise RuntimeWarning
+            with open(report_path, "r") as f:
+                for line in f.read().splitlines():
+                    json_line: dict = json.loads(line) # I do not know yet if this will change into an array if multiple urls are fed
+                    if json_line.get("failed"):
+                        raise Exception("httpx failed")
+                    technologies = json_line.get("tech")
+                    if not json_line:
+                        continue # may be a break or return when empty. Need to test
+                    assert isinstance(technologies, list)
+                    for tech in technologies:
+                        # each entry is a string with a structure of name:version
+                        arr = tech.split(":") if tech.__contains__(":") else [tech]
+                        if len(arr) == 1:
+                            technologies_list.append(TechEntry(
+                                name=arr[0],
+                                version="",
+                                source="httpx"
+                            ))
+                            continue
                         technologies_list.append(TechEntry(
                             name=arr[0],
-                            version="",
+                            version=arr[1],
                             source="httpx"
                         ))
-                        continue
-                    technologies_list.append(TechEntry(
-                        name=arr[0],
-                        version=arr[1],
-                        source="httpx"
-                    ))
-
-        # after everything is done, store it on content
-        cpe = json_line.get("cpe")
-        assert isinstance(cpe, list)
-        content = { # TODO: Something is wrong when dumping this
-            # "technologies": [entry.model_dump() for entry in technologies_list],
-            "technologies": technologies_list,
-            "cpe": [ entry["cpe"] for entry in cpe],
-            "tls": json_line.get("tls"),
-        }
-        return content
+            cpe = json_line.get("cpe")
+            assert isinstance(cpe, list)
+            return { # TODO: Something is wrong when dumping this
+                # "technologies": [entry.model_dump() for entry in technologies_list],
+                "technologies": technologies_list,
+                "cpe": [entry["cpe"] for entry in cpe],
+                "tls": json_line.get("tls"),
+            }
+        except RuntimeWarning:
+            logger.warning("HTTPX report file empty! Was there any scanner errors?")
+            return None
+        except AssertionError as e:
+            logger.error("HTTPX parsing has encountered an unexpected type!")
+            logger.exception(e)
+            raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:
-        import docker
+        from docker import errors as docker_errors, from_env as docker_from_env
         logger.info("Cleaning up HTTPX artifacts")
         # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
-        client = docker.from_env()
+        client = docker_from_env()
         try:
             container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
             container.remove()
-        except docker.errors.NotFound:
+        except docker_errors.NotFound:
             logger.warning(f"Could not find container with ID: {self.scanner_name}_{session_id}. Skipping cleanup")
 
     def spawn_container(self, session_id: str, ctx: ScanContext) -> Container:
