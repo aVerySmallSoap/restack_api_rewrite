@@ -86,22 +86,26 @@ class Katana(IContainerScanner):
         finally:
             self.cleanup(session_id)
 
+    #noinspection D
     def parse_results(self, session_id: str) -> dict | None:
         logger.info(f"Parsing Katana results for session: {session_id}")
         hashed_records: list[str] = []
         out_of_scope: list = []
         unique_endpoints: set = set()
         endpoints: list[str] = []
-        standard_path = f"{self.report_path}/{session_id}.json"
+        path = f"{self.report_path}/{session_id}.json"
         headless_path = f"{self.report_path}/headless_{session_id}.json"
+        paths = [path, headless_path]
 
         try:
             assert self._scanner_context.primary_host is not None
 
-            for path in [standard_path, headless_path]:
-                with open(path, "r") as file:
-                    if is_file_empty(path):
+            for index in range(len(paths)):
+                if is_file_empty(paths[index]):
+                    if index == len(paths) - 1:
                         raise RuntimeWarning
+                    continue
+                with open(path, "r") as file:
                     for line in file.read().splitlines():
                         record = json.loads(line)
                         _endpoint = record["request"].get("endpoint")

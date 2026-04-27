@@ -7,6 +7,7 @@ from docker.models.containers import Container
 from modules.interfaces.types.context import ScanContext, TechEntry
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
+from modules.utils.utils import is_file_empty
 
 
 # noinspection D
@@ -48,7 +49,7 @@ class WappalyzerNext(IContainerScanner):
                     stdout=[logs, headless_logs],
                     stderr=None,
                     exit_code=exit_code,
-                    runtime_ms=int((time.monotonic() - started) * 1000),
+                    runtime_ms=(time.monotonic() - started) * 1_000,
                 ).model_dump()
 
             parsed = self.parse_results(session_id)
@@ -59,7 +60,7 @@ class WappalyzerNext(IContainerScanner):
                 result=parsed,
                 stdout=[logs, headless_logs],
                 exit_code=exit_code,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         except Exception as e:
@@ -74,58 +75,50 @@ class WappalyzerNext(IContainerScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         finally:
-            # self.cleanup(session_id)
-            pass
+            self.cleanup(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
-        import json
-        import os
+    def parse_results(self, session_id: str) -> dict | None:
+        import json, os
         logger.info(f"Parsing wappalyzer-next results for session: {session_id}")
         path = f"{self.report_path}/{session_id}.json"
         headless_path = f"{self.report_path}/headless_{session_id}.json"
-        if os.path.getsize(path) == 0:
-            return None
+        paths = [path, headless_path]
         collection: list[TechEntry] = []
-        with open(path) as f:
-            for line in f.read().splitlines():
-                record = json.loads(line).get(self._scanner_context.primary_url)
-                if record is not None or record != {}:
-                    assert isinstance(record, dict)
-                    for plugin, content in record.items():
-                        print(f"{plugin}: {content["version"] if content["version"] != "" else None}")
-                        collection.append(
-                            TechEntry(
-                                name=plugin,
-                                version=content["version"] if content["version"] != "" else None,
-                                source="wappalyzer-next",
-                                categories=None
-                            )
-                        )
-        with open(headless_path) as f:
-            if os.path.getsize(path) == 0:
+
+        try:
+            for index in range(len(paths)):
+                if is_file_empty(paths[index]):
+                    if index == len(paths) - 1:
+                        raise RuntimeWarning
+                    continue
+                with open(paths[index], "r") as file:
+                    for line in file.read().splitlines():
+                        record = json.loads(line).get(self._scanner_context.primary_url)
+                        if record is not None or record != {}:
+                            assert isinstance(record, dict)
+                            for plugin, content in record.items():
+                                collection.append(
+                                    TechEntry(
+                                        name=plugin,
+                                        version=content["version"] if content["version"] != "" else None,
+                                        source="wappalyzer-next",
+                                        categories=None
+                                    )
+                                )
                 return {
-                    "technologies": [entry.model_dump() for entry in collection]
+                    "technologies": collection
                 }
-            for line in f.read().splitlines():
-                record = json.loads(line).get(self._scanner_context.primary_url)
-                if record is not None or record != {}:
-                    assert isinstance(record, dict)
-                    for plugin, content in record.items():
-                        collection.append(
-                            TechEntry(
-                                name=plugin,
-                                version=content["version"] if content["version"] != "" else None,
-                                source="wappalyzer-next",
-                                categories=None
-                            )
-                        )
-        return {
-            "technologies": [entry.model_dump() for entry in collection]
-        }
+        except RuntimeWarning:
+            logger.warning("Wappalyzer-next report file empty! Was there any scanner errors?")
+            return None
+        except AssertionError as e:
+            logger.error("Wappalyzer-next parsing has encountered an unexpected type!")
+            logger.exception(e)
+            raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:
         import docker

@@ -95,20 +95,22 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
             if item.status != "success":
                 logger.warning(f"{item.scanner} skipped. Errors: {item.error}")
                 continue
+            assert discovery_ctx.cpes is not None
+            assert discovery_ctx.technologies is not None
 
             match item.scanner:
                 case "sslyze":
                     pass
                 case "whatweb":
-                    assert discovery_ctx.cpes is not None
-                    assert discovery_ctx.technologies is not None
-                    assert item.result is not None
+                    if item.result is None:
+                        logger.warning(f"WhatWeb returned without results")
+                        continue
                     discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(item.result["technologies"]))
                     discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
                 case "wappalyzer":
-                    assert discovery_ctx.cpes is not None
-                    assert discovery_ctx.technologies is not None
-                    assert item.result is not None
+                    if item.result is None:
+                        logger.warning(f"Wappalyzer-next returned without results")
+                        continue
                     discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(item.result["technologies"]))
                     discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
     except AssertionError as e:
