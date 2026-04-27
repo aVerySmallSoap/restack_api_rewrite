@@ -6,9 +6,11 @@ import docker
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import ScanContext
+from modules.interfaces.types.context import ScanContext
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
+from app.modules.utils.utils import is_file_empty
+
 
 class Naabu(IContainerScanner):
     report_path = f"{Path.cwd()}/app/reports/naabu"
@@ -19,7 +21,6 @@ class Naabu(IContainerScanner):
     def start_scan(self, session_id: str, ctx: ScanContext) -> dict:
         logger.info(f"Starting Naabu scan: {session_id}")
         started = time.monotonic()
-
         try:
             container = self.spawn_container(session_id, ctx)
             result = container.wait(timeout=self._timeout)
@@ -37,7 +38,7 @@ class Naabu(IContainerScanner):
                     stdout=logs,
                     stderr=None,
                     exit_code=exit_code,
-                    runtime_ms=int((time.monotonic() - started) * 1000),
+                    runtime_ms=(time.monotonic() - started) * 1_000,
                 ).model_dump()
 
             parsed = self.parse_results(session_id)
@@ -49,7 +50,7 @@ class Naabu(IContainerScanner):
                 result=parsed,
                 stdout=logs,
                 exit_code=exit_code,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         except Exception as e:
@@ -63,30 +64,39 @@ class Naabu(IContainerScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         finally:
             self.cleanup(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def parse_results(self, session_id: str) -> dict | None:
         logger.info(f"Parsing Naabu results for session: {session_id}")
         ports: list[int] = []
-        with open(f"{self.report_path}/{session_id}.json") as f:
-            for line in f.read().splitlines():
-                record = json.loads(line) # TODO: also check if the ip is the same
-                ports.append(record["port"])
-        return {"ports": ports}
+        base_report = f"{self.report_path}/{session_id}.json"
+
+        try:
+            if is_file_empty(base_report):
+                raise RuntimeWarning
+            with open(base_report, "r") as f:
+                for line in f.read().splitlines():
+                    record = json.loads(line) # TODO: also check if the ip is the same
+                    ports.append(record["port"])
+            return {"ports": ports}
+        except RuntimeWarning:
+            logger.warning("Naabu report file empty! Was there any scanner errors?")
+            return None
 
     def cleanup(self, session_id: str) -> None:
+        from docker import errors as docker_errors, from_env as docker_from_env
         logger.info("Cleaning up Naabu artifacts")
         Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
-        client = docker.from_env()
+        client = docker_from_env()
         try:
             container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
             container.remove()
-        except docker.errors.NotFound:
+        except docker_errors.NotFound:
             logger.warning("Containers could not be found! Skipping cleanup...")
             return
 

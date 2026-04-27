@@ -7,11 +7,13 @@ from time import sleep
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import ScanContext
+from app.modules.interfaces.types.context import ScanContext
 from app.modules.utils.utils import map_endpoints, is_same_host
 from app.modules.scanners.discovery.katana.katana_context import KatanaContext
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
+from app.modules.utils.utils import is_file_empty
+
 
 class Katana(IContainerScanner):
     report_path = f"{Path.cwd()}/app/reports/katana"
@@ -53,7 +55,7 @@ class Katana(IContainerScanner):
                     stdout=[logs, headless_logs],
                     stderr=None,
                     exit_code=exit_code,
-                    runtime_ms=int((time.monotonic() - started) * 1000),
+                    runtime_ms=(time.monotonic() - started) * 1_000,
                 ).model_dump()
 
             parsed = self.parse_results(session_id)
@@ -64,7 +66,7 @@ class Katana(IContainerScanner):
                 result=parsed,
                 stdout=[logs, headless_logs],
                 exit_code=exit_code,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         except Exception as e:
@@ -78,68 +80,59 @@ class Katana(IContainerScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         finally:
             self.cleanup(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def parse_results(self, session_id: str) -> dict | None:
         logger.info(f"Parsing Katana results for session: {session_id}")
         hashed_records: list[str] = []
         out_of_scope: list = []
         unique_endpoints: set = set()
         endpoints: list[str] = []
+        standard_path = f"{self.report_path}/{session_id}.json"
+        headless_path = f"{self.report_path}/headless_{session_id}.json"
 
         try:
-            assert isinstance(self._scanner_context.primary_host, str)
+            assert self._scanner_context.primary_host is not None
+
+            for path in [standard_path, headless_path]:
+                with open(path, "r") as file:
+                    if is_file_empty(path):
+                        raise RuntimeWarning
+                    for line in file.read().splitlines():
+                        record = json.loads(line)
+                        _endpoint = record["request"].get("endpoint")
+                        record_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
+                        if not is_same_host(self._scanner_context.primary_host, _endpoint):
+                            out_of_scope.append(_endpoint)
+                            continue
+                        if record_hash not in hashed_records:
+                            hashed_records.append(record_hash)
+                        endpoints.append(_endpoint)
+                        unique_endpoints.add(_endpoint)
+            site_map = map_endpoints(unique_endpoints)
+            return {
+                "siteMap": site_map,
+                "endPoints": endpoints,
+                "outOfScope": out_of_scope,
+            }
+        except RuntimeWarning:
+            logger.warning("Katana report file empty! Was there any scanner errors?")
+            return None
         except AssertionError as e:
-            logger.error("The Katana context contains type errors!")
+            logger.error("Katana parsing has encountered an unexpected type!")
             logger.exception(e)
-            raise
-
-        # endpoint validation
-        with open(f"{self.report_path}/{session_id}.json") as f:
-            for line in f.read().splitlines():
-                record = json.loads(line)
-                _endpoint = record["request"].get("endpoint")
-                record_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
-                if not is_same_host(self._scanner_context.primary_host, _endpoint):
-                    out_of_scope.append(_endpoint)
-                    continue
-                hashed_records.append(record_hash)
-                endpoints.append(_endpoint)
-                unique_endpoints.add(_endpoint)
-
-        with open(f"{self.report_path}/headless_{session_id}.json") as f:
-            for line in f.read().splitlines():
-                record = json.loads(line)
-                _endpoint = record["request"].get("endpoint")
-                record_hash = hashlib.sha256(line.encode('utf-8')).hexdigest()
-                if not is_same_host(self._scanner_context.primary_host, _endpoint):
-                    out_of_scope.append(_endpoint)
-                    continue
-                if record_hash not in hashed_records:
-                    hashed_records.append(record_hash)
-                endpoints.append(_endpoint)
-                unique_endpoints.add(_endpoint)
-        site_map = map_endpoints(unique_endpoints)
-        content = {
-            "siteMap": site_map,
-            "endPoints": endpoints,
-            "outOfScope": out_of_scope,
-        }
-        self._scanner_context.content = content
-        self.cleanup(session_id)
-        return content
+            raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:
-        import docker
+        from docker import errors as docker_errors, from_env as docker_env
         logger.info("Cleaning up Katana artifacts")
-
         Path(f"{self.report_path}/headless_{session_id}.json").unlink(missing_ok=True)
         Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
-        client = docker.from_env()
+        client = docker_env()
         try:
             container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
@@ -147,7 +140,7 @@ class Katana(IContainerScanner):
             headless_container = client.containers.get(f"{self.scanner_name}_headless_{session_id}")
             headless_container.stop(timeout=5)
             headless_container.remove()
-        except docker.errors.NotFound:
+        except docker_errors.NotFound:
             logger.warning("Containers could not be found! Skipping cleanup...")
             return
     

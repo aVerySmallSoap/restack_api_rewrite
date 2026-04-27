@@ -7,10 +7,9 @@ from urllib.parse import urlparse
 from loguru import logger
 from fastapi import FastAPI
 
-from app.modules.pipeline.context import ScanContext
+from modules.interfaces.types.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
-from app.modules.scanners.discovery.subfinder.subfinder import Subfinder
 from app.modules.scanners.discovery.search_vulns.search_vulns_query import SearchVulnsQuery
 
 
@@ -39,8 +38,6 @@ async def root():
     target = "http://10.89.0.3"
     # target = "https://his.dnsc.edu.ph"
     ctx: ScanContext = ScanContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc, config=None)
-    # subfinder = Subfinder()
-    # subfinder.start_scan(session_id, ctx)
     queriable = SearchVulnsQuery()
     queriable.start_scan(session_id, ctx)
     return {"session_id": session_id}

@@ -5,7 +5,7 @@ from pathlib import Path
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import ScanContext, TechEntry
+from modules.interfaces.types.context import ScanContext, TechEntry
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 

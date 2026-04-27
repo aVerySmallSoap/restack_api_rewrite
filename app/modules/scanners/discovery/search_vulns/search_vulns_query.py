@@ -5,8 +5,8 @@ from pathlib import Path
 
 from loguru import logger
 
-from app.modules.utils.utils import compile_and_parse_to_search_vuln_queriable, resolve_tech_to_tech_entry
-from app.modules.pipeline.context import ScanContext, redis_client
+from app.modules.utils.utils import compile_and_parse_to_search_vuln_queriable
+from modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.interfaces.enums.scanners import ICliScanner
 from app.modules.interfaces.types.options import ScannerTaskResult

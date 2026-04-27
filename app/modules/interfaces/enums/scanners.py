@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Literal, overload
+from typing import Any, Literal
 
 from docker.models.containers import Container
 
-from app.modules.interfaces.types.options import BaseContext, PhaseContext, ScannerTaskResult
-from app.modules.pipeline.context import ScanContext
+from app.modules.interfaces.types.options import BaseContext, ScannerTaskResult
+from modules.interfaces.types.context import ScanContext
 
 # Scanner Interfaces
 class IBaseScanner(ABC):
@@ -26,11 +26,23 @@ class IBaseScanner(ABC):
     _scanner_context: BaseContext
 
     @abstractmethod
-    def start_scan(self, session_id: str, ctx: ScanContext) -> ScannerTaskResult:
+    def start_scan(self, session_id: str, ctx: ScanContext) -> ScannerTaskResult | dict:
+        """
+        Starts a tool scan. The return type is hinted as of type dict but the object ScannerTaskResult is required
+        for the system to communicate properly
+        :param session_id: Session ID for the current scan
+        :param ctx: The Scan Context object
+        :return: ScannerTaskResult in dictionary format
+        """
         pass
 
     @abstractmethod
-    def parse_results(self, session_id: str) -> dict:
+    def parse_results(self, session_id: str) -> dict | None:
+        """
+        Parse the tools results.
+        :param session_id: Session ID for the current scan
+        :returns: Parsed results
+        """
         pass
 
     @abstractmethod

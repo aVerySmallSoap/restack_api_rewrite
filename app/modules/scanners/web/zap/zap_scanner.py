@@ -6,7 +6,7 @@ from loguru import logger
 from zapv2 import ZAPv2
 
 from app.modules.scanners.web.zap.zap_context import ZapContext, ZapScanProfiles
-from app.modules.pipeline.context import ScanContext
+from modules.interfaces.types.context import ScanContext
 from app.modules.interfaces.enums.scanners import IAPIScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 

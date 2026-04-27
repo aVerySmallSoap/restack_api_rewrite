@@ -4,7 +4,7 @@ from billiard import TimeLimitExceeded
 from loguru import logger
 
 from app.services.celery_app import celery_app
-from app.modules.pipeline.context import ScanContext, redis_client
+from modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.scanners.discovery import (
     SSLyze, WhatWeb, WappalyzerNext
 )

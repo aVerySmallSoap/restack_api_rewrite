@@ -6,9 +6,11 @@ from pathlib import Path
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.pipeline.context import ScanContext
+from modules.interfaces.types.context import ScanContext
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
+from app.modules.utils.utils import is_file_empty
+
 
 class Subfinder(IContainerScanner):
     report_path = f"{Path.cwd()}/app/reports/subfinder"
@@ -37,7 +39,7 @@ class Subfinder(IContainerScanner):
                     stdout=logs,
                     stderr=None,
                     exit_code=exit_code,
-                    runtime_ms=int((time.monotonic() - started) * 1000),
+                    runtime_ms=(time.monotonic() - started) * 1_000,
                 ).model_dump()
 
             parsed = self.parse_results(session_id)
@@ -48,7 +50,7 @@ class Subfinder(IContainerScanner):
                 result=parsed,
                 stdout=logs,
                 exit_code=exit_code,
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
 
         except Exception as e:
@@ -62,44 +64,52 @@ class Subfinder(IContainerScanner):
                 status=status,
                 result=None,
                 error=str(e),
-                runtime_ms=int((time.monotonic() - started) * 1000),
+                runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         finally:
             self.cleanup(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def parse_results(self, session_id: str) -> dict | None:
         logger.info(f"Parsing Subfinder results for session: {session_id}")
         path = f"{self.report_path}/{session_id}.json"
-        if os.path.getsize(path) == 0:
-            return None
-        with open(path) as f:
-            base_input = json.loads(f.readline()).get("input")
-            sources: set = set()
-            hosts: list = []
-            for line in f.read().splitlines():
-                record: dict = json.loads(line)
-                record_sources = record.get("sources")
-                assert isinstance(record_sources, list)
-                for source in record_sources:
-                    sources.add(source)
-                hosts.append(record.get("host"))
-        return {
-            base_input: {
-                "hosts": hosts,
-                "sources": list(sources)
+        try:
+            if is_file_empty(path):
+                raise RuntimeWarning
+            with open(path, "r") as f:
+                base_input = json.loads(f.readline()).get("input")
+                sources: set = set()
+                hosts: list = []
+                for line in f.read().splitlines():
+                    record: dict = json.loads(line)
+                    record_sources = record.get("sources")
+                    assert isinstance(record_sources, list)
+                    for source in record_sources:
+                        sources.add(source)
+                    hosts.append(record.get("host"))
+            return {
+                base_input: {
+                    "hosts": hosts,
+                    "sources": list(sources)
+                }
             }
-        }
+        except RuntimeWarning:
+            logger.warning("Subfinder report file empty! Was there any scanner errors?")
+            return None
+        except AssertionError as e:
+            logger.error("Subfinder parsing encountered an unexpected type!")
+            logger.exception(e)
+            raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:
-        import docker
+        from docker import errors as docker_errors, from_env as docker_from_env
         logger.info("Cleaning up Subfinder artifacts")
         # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
-        client = docker.from_env()
+        client = docker_from_env()
         try:
             container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
-            # container.remove()
-        except docker.errors.NotFound:
+            container.remove()
+        except docker_errors.NotFound:
             logger.warning(f"Could not find container with ID: subfinder_{session_id}. Skipping cleanup")
 
     def spawn_container(self, session_id: str, ctx: ScanContext) -> Container:

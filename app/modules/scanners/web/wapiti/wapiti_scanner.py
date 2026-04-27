@@ -4,7 +4,7 @@ from pathlib import Path
 from loguru import logger
 
 from app.modules.scanners.web.wapiti.wapiti_config_builder import WapitiConfigBuilder, WapitiConfig
-from app.modules.pipeline.context import ScanContext, redis_client
+from modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.interfaces.enums.scanners import ICliScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext

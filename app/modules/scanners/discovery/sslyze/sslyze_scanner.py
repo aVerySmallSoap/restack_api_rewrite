@@ -1,14 +1,12 @@
-import json
 import time
 from datetime import datetime, timezone
-from time import monotonic
 from pathlib import Path
 
 from loguru import logger
 from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanner, SslyzeOutputAsJson, \
     ServerScanResultAsJson
 
-from app.modules.pipeline.context import ScanContext
+from modules.interfaces.types.context import ScanContext
 from app.modules.interfaces.enums.scanners import IBaseScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 

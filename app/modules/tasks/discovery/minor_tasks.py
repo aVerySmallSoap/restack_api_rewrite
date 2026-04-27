@@ -2,7 +2,7 @@ import json
 
 from billiard import TimeLimitExceeded
 
-from app.modules.pipeline.context import ScanContext
+from modules.interfaces.types.context import ScanContext
 from app.services.celery_app import celery_app
 from app.modules.scanners.discovery.search_vulns.search_vulns_query import SearchVulnsQuery
 from app.modules.interfaces.types.options import ScannerTaskResult

@@ -1,7 +1,12 @@
-from app.modules.pipeline.context import TechEntry
+from modules.interfaces.types.context import TechEntry
 
 
 def read_required_images() -> list[str]:
+    """
+    Reads the required images from the docker_images file.
+    :return: A list of image tags
+    :raise: FileNotFoundError
+    """
     from loguru import logger
     collection: list[str] = []
     try:
@@ -10,8 +15,14 @@ def read_required_images() -> list[str]:
                 collection.append(line)
     except FileNotFoundError:
         logger.exception("docker_images file not found!")
-        return []
+        raise FileNotFoundError
     return collection
+
+def is_file_empty(path: str) -> bool:
+    import os
+    if os.path.getsize(path) == 0:
+        return True
+    return False
 
 # Discovery utils
 

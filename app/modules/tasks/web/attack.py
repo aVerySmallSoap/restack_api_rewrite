@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 from billiard import TimeLimitExceeded
@@ -8,7 +7,7 @@ from loguru import logger
 from app.modules.scanners.web.nuclei.nuclei import Nuclei
 from app.services.celery_app import celery_app
 from app.modules.interfaces.types.options import ScannerTaskResult
-from app.modules.pipeline.context import ScanContext, redis_client
+from modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
 from app.modules.scanners.web.zap.zap_scanner import ZapScanner
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext

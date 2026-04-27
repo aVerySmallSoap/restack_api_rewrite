@@ -4,7 +4,7 @@ from billiard.exceptions import TimeLimitExceeded
 from loguru import logger
 
 from app.services.celery_app import celery_app
-from app.modules.pipeline.context import ScanContext, redis_client
+from modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.scanners.discovery import Katana, Naabu, Subfinder
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.interfaces.types.options import ScannerTaskResult
@@ -105,9 +105,9 @@ def task_build_preamble_context(self, results: list[dict], discovery_context: st
     except AssertionError as e:
         logger.error("An object has an unexpected value!")
         logger.exception(e)
-        raise
+        raise AssertionError
     except Exception as e:
         logger.error("Something unexpected happened!")
         logger.exception(e)
-        raise
+        raise RuntimeWarning
     redis_client.set(f"discovery:{session_id}", discovery_ctx.model_dump_json())

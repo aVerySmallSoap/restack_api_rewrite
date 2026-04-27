@@ -5,7 +5,7 @@ from app.modules.tasks import (
     task_httpx, task_build_liveliness_context,
     task_sslyze, task_whatweb, task_wappalyzer, task_build_asset_context
 )
-from app.modules.pipeline.context import ScanContext, redis_client
+from modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.tasks.discovery.minor_tasks import task_search_vuln_query
 from app.modules.tasks.web.attack import (
