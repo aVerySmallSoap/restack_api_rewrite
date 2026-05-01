@@ -8,6 +8,7 @@ from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.interfaces.types.context import ScanContext
 from app.modules.scanners.web.nuclei.nuclei_context import NucleiContext
+from app.modules.utils.utils import text_io_to_dict_list
 
 
 class Nuclei(IContainerScanner):
@@ -71,8 +72,37 @@ class Nuclei(IContainerScanner):
             self.cleanup(session_id)
 
     def parse_results(self, session_id: str) -> dict:
-        # TODO: implement
-        pass
+        _json_items: list[dict]
+        _returnable: list[dict] = []
+        with open(f"{self.report_path}/{session_id}.json", "r") as f:
+            _json_items = text_io_to_dict_list(f)
+            for record in _json_items:
+                _cve_id = record["info"]["classification"]["cve-id"] if record["info"]["classification"][
+                                "cve-id"] else None
+                _cwe_id = record["info"]["classification"]["cwe-id"] if record["info"]["classification"][
+                                "cwe-id"] else None,
+                _returnable.append({
+                    "template": record["template"],
+                    "templateId": record["template-id"],
+                    "info": {
+                        "name": record["info"]["name"],
+                        "tags": record["info"]["tags"],
+                        "description": record["info"].get("description", None),
+                        "reference": record["info"].get("reference", None),
+                        "severity": record["info"]["severity"],
+                        "classification": {
+                            "cve-id": _cve_id,
+                            "cwe-id": _cwe_id
+                        } if record["info"].get("classification") else None
+                    },
+                    "url": record["url"],
+                    "matchedAt": record["matched-at"],
+                    "request": record["request"],
+                    "curlCommand": record.get("curl-command", None),
+                })
+            return {
+                "data": _returnable
+            }
 
     def cleanup(self, session_id: str) -> None:
         from docker import errors as docker_errors, from_env as docker_env

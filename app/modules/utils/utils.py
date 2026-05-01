@@ -1,3 +1,5 @@
+from typing import TextIO
+
 from app.modules.interfaces.types.context import TechEntry
 
 
@@ -49,6 +51,49 @@ def is_same_host(host: str, endpoint: str) -> bool:
     return host == urlparse(endpoint).netloc
 
 # misc
+
+#noinspection D
+def text_io_to_dict_list(text: TextIO) -> list[dict]:
+    """
+    Walks each character of the text and converts it into a dictionary.
+    The stream does not need to be one valid JSON document, but each extracted object must be valid JSON.
+    :param text: The stream to be parsed
+    :return: list of dictionaries
+    :raises: JSONDecodeError
+    """
+    import json
+    _stack: list = []
+    _json_items: list[dict] = []
+    line_item: str = ""
+    try:
+        _in_string: bool = False
+        for char in text.read():
+            if _in_string:
+                line_item += char
+                continue
+            if char == "\"" and not _in_string:
+                line_item += char
+                _stack.append(char)
+                continue
+            if char == "\"": # terminating string
+                _in_string = False
+                line_item += char
+                _stack.pop()
+                continue
+
+            if char == "{":
+                _stack.append(char)
+            if char == "}" and _stack.__len__() > 0:
+                _stack.pop()
+                if _stack.__len__() == 0:
+                    line_item += char
+                    _json_items.append(json.loads(line_item))
+                    line_item = ""
+                    continue
+            line_item += char
+        return _json_items
+    except json.JSONDecodeError as e:
+        raise json.JSONDecodeError(e.msg, e.doc, e.pos)
 
 def list_to_str(items: list, separator: str = ",") -> str:
     """
