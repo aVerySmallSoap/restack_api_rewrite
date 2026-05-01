@@ -6,7 +6,7 @@ from loguru import logger
 
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
-from modules.interfaces.types.context import ScanContext
+from app.modules.interfaces.types.context import ScanContext
 from app.modules.scanners.web.nuclei.nuclei_context import NucleiContext
 
 

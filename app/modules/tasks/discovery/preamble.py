@@ -4,7 +4,7 @@ from billiard.exceptions import TimeLimitExceeded
 from loguru import logger
 
 from app.services.celery_app import celery_app
-from modules.interfaces.types.context import ScanContext, redis_client
+from app.modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.scanners.discovery import Katana, Naabu, Subfinder
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.interfaces.types.options import ScannerTaskResult

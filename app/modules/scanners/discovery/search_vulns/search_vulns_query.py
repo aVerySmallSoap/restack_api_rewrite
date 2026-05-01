@@ -6,7 +6,7 @@ from pathlib import Path
 from loguru import logger
 
 from app.modules.utils.utils import compile_and_parse_to_search_vuln_queriable, is_file_empty
-from modules.interfaces.types.context import ScanContext, redis_client
+from app.modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.interfaces.enums.scanners import ICliScanner
 from app.modules.interfaces.types.options import ScannerTaskResult

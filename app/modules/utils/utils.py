@@ -1,4 +1,4 @@
-from modules.interfaces.types.context import TechEntry
+from app.modules.interfaces.types.context import TechEntry
 
 
 def read_required_images() -> list[str]:
@@ -50,15 +50,31 @@ def is_same_host(host: str, endpoint: str) -> bool:
 
 # misc
 
-def list_to_str(items: list[str], separator: str = ",") -> str:
-    """Converts a list of items into a string. The default separator of this is a comma (,)"""
-    returnable: str = ""
+def list_to_str(items: list, separator: str = ",") -> str:
+    """
+    Converts a list of items into a string. The default separator of this is a comma (,)
+    """
+    _last_index = len(items) - 1
+    _returnable: str = ""
     for index in range(len(items)):
-        if index == len(items) - 1:
-            returnable += items[index]
+        if index == _last_index:
+            _returnable += items[index]
             break
-        returnable += items[index] + separator
-    return returnable
+        _returnable += items[index] + separator
+    return _returnable
+
+def set_to_str(items: set, separator: str = ",") -> str:
+    """
+    Converts a set of items into a string. The default separator of this is a comma (,)
+    """
+    _last_index = len(items) - 1
+    _returnable: str = ""
+    for index, item in enumerate(items):
+        if index == _last_index:
+            _returnable += str(item)
+            break
+        _returnable += str(item) + ","
+    return _returnable
 
 def tech_to_cpe(tech: list[TechEntry]) -> list[str]:
     """

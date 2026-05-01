@@ -4,7 +4,7 @@ from typing import Any, Literal
 from docker.models.containers import Container
 
 from app.modules.interfaces.types.options import BaseContext, ScannerTaskResult
-from modules.interfaces.types.context import ScanContext
+from app.modules.interfaces.types.context import ScanContext
 
 # Scanner Interfaces
 class IBaseScanner(ABC):

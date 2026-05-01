@@ -6,7 +6,7 @@ import docker
 from docker.models.containers import Container
 from loguru import logger
 
-from modules.interfaces.types.context import ScanContext
+from app.modules.interfaces.types.context import ScanContext
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.utils.utils import is_file_empty

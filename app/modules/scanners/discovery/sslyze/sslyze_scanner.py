@@ -6,7 +6,7 @@ from loguru import logger
 from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanner, SslyzeOutputAsJson, \
     ServerScanResultAsJson
 
-from modules.interfaces.types.context import ScanContext
+from app.modules.interfaces.types.context import ScanContext
 from app.modules.interfaces.enums.scanners import IBaseScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 
@@ -70,12 +70,13 @@ class SSLyze(IBaseScanner):
             date_scans_completed=date_scans_completed,
         )
 
+        json_str = json_output.model_dump_json()
         Path(f"{self._base_report_path}/{session_id}.json").write_text(json_output.model_dump_json())
         return ScannerTaskResult(
             scanner="sslyze",
             phase="asset",
             status="success",
-            result=json_output.model_dump(),
+            result=json_str,
             stdout=None,
             exit_code=None,
             runtime_ms=int((time.monotonic() - started) * 1000),
