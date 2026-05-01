@@ -81,9 +81,50 @@ class WapitiScanner(ICliScanner):
         finally:
             self.cleanup(session_id)
 
-
+    # noinspection D
     def parse_results(self, session_id: str) -> dict:
-        pass
+        """Parses generated report to SARIF v2.1.0
+                :param session_id: The path of the report to parse
+                :return: The parsed report"""
+        import json
+        logger.debug(f"Parsing Wapiti results for session: {session_id}")
+        sarif_report = {
+            "version": "2.1.0",
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "Wapiti3",
+                            "rules": []
+                        }
+                    },
+                    "results": []
+                }
+            ]
+        }
+        with open(f"{self.report_path}/{session_id}.json", "r") as report:
+            report = json.load(report)
+            self._parse_definitions_to_sarif(sarif_report, report)
+            for category in report["vulnerabilities"]:
+                if len(report["vulnerabilities"][category]) != 0:
+                    for vulnerability in report["vulnerabilities"][category]:
+                        result = {"ruleId": category, "locations": [], "properties": {}}
+                        for key, value in vulnerability.items():
+                            match key:
+                                case "level":
+                                    self._parse_level_to_sarif(value, result)
+                                case "info":
+                                    result.update({"message": {"text": value}})
+                                case "path":
+                                    result["locations"].append(
+                                        {"physicalLocation": {"artifactLocation": {"uri": value}}})
+                                case _:
+                                    if key == "wstg":
+                                        result["properties"].update({"wstg": value})
+                                    result["properties"].update({key: value})
+                    sarif_report["runs"][0]["results"].append(result)
+        return sarif_report
+
 
     def cleanup(self, session_id: str) -> None:
         pass
@@ -95,3 +136,45 @@ class WapitiScanner(ICliScanner):
             .output(f"{self.report_path}/{session_id}.json")
             .build()
         )
+
+    #noinspection D
+    def _parse_definitions_to_sarif(self, sarif_report, report):
+        """Parses Wapiti3's vulnerability definitions to sarif. This function has an intended side effect of mutating the rule variable.
+        :param sarif_report: dictionary to modify
+        :param report: report to read and rewrite
+        """
+        import json
+        with open("templates/wstg_to_cwe.json", "r") as file:
+            mapping = json.load(file)
+            for category in report["vulnerabilities"]:
+                rule = {"id": category, "shortDescription": {"text": category}}
+                for key, value in report["classifications"][category].items():
+                    match key:
+                        case "desc":
+                            rule.update({"fullDescription": {"text": value}})
+                        case "sol":
+                            rule.update({"help": {"text": value}})
+                        case "ref":
+                            markdown = "References:\n"
+                            for title, link in value.items():
+                                markdown.join("\n[{}]({})".format(title, link))
+                            rule["help"].update({"markdown": value})
+                        case "wstg":
+                            _list = []
+                            if category in mapping:
+                                _list.append(mapping[category])
+                                for wstg in value:
+                                    _list.append(wstg)
+                            rule.update({"properties": {"tags": _list}})
+                sarif_report["runs"][0]["tool"]["driver"]["rules"].append(rule)
+
+    def _parse_level_to_sarif(self, level: int, result: dict):
+        """Parses Wapiti's level information to sarif. A util function
+        :param level:
+        :param result: dictionary to modify"""
+        if level == 0:
+            result.update({"level": "note"})
+        elif level == 1:
+            result.update({"level": "warning"})
+        else:
+            result.update({"level": "error"})

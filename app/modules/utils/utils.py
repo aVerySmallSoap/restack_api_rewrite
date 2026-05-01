@@ -61,39 +61,55 @@ def text_io_to_dict_list(text: TextIO) -> list[dict]:
     :return: list of dictionaries
     :raises: JSONDecodeError
     """
+    from loguru import logger
     import json
     _stack: list = []
     _json_items: list[dict] = []
     line_item: str = ""
     try:
         _in_string: bool = False
+        _escaped: bool = False
         for char in text.read():
+            line_item += char
+
             if _in_string:
-                line_item += char
-                continue
-            if char == "\"" and not _in_string:
-                line_item += char
-                _stack.append(char)
-                continue
-            if char == "\"": # terminating string
-                _in_string = False
-                line_item += char
-                _stack.pop()
+                if _escaped:
+                    _escaped = False
+                elif char == "\\":
+                    _escaped = True
+                elif char == "\"":
+                    _in_string = False
                 continue
 
+            if char == "\"":
+                _in_string = True
+                continue
             if char == "{":
                 _stack.append(char)
-            if char == "}" and _stack.__len__() > 0:
+                continue
+
+            if char == "}":
+                if not _stack:
+                    raise json.JSONDecodeError(
+                        "Unexpected closing brace",
+                        line_item,
+                        len(line_item) - 1,
+                    )
                 _stack.pop()
-                if _stack.__len__() == 0:
-                    line_item += char
+                if len(_stack) == 0:
                     _json_items.append(json.loads(line_item))
                     line_item = ""
-                    continue
-            line_item += char
+
+        if line_item.strip():
+            raise json.JSONDecodeError(
+                "Incomplete or trailing JSON content",
+                line_item,
+                len(line_item) - 1,
+            )
         return _json_items
-    except json.JSONDecodeError as e:
-        raise json.JSONDecodeError(e.msg, e.doc, e.pos)
+    except json.JSONDecodeError:
+        logger.exception("Invalid JSON was detected during parsing.")
+        raise
 
 def list_to_str(items: list, separator: str = ",") -> str:
     """
