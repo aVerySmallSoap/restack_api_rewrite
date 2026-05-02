@@ -4,3 +4,5 @@ docker.io/projectdiscovery/katana:latest
 docker.io/projectdiscovery/nuclei:latest
 docker.io/projectdiscovery/naabu:latest
 docker.io/zaproxy/zap-weekly:latest
+docker.io/iamyourdev/whatweb:latest
+docker.io/iamyourdev/wappalyzer:latest

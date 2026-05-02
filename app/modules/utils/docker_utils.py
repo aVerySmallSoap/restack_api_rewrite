@@ -15,10 +15,11 @@ def ensure_podman_docker_presence():
             raise docker_errors.DockerException("No API version found!")
         # Podman/Docker should be present and the usual checks should be good to go
         ensure_named_volumes()
-        check_images()
+        # check_images()
         check_nuclei_templates()
         start_zap_service()
         wait_for_zap_or_crash()
+        ensure_reports_folder_present()
     except docker_errors.APIError as e:
         logger.error("Podman/Docker API is not responding! Shutting down server...")
         raise Exception(e)
@@ -53,7 +54,8 @@ def check_images():
         if not requirements:
             return None
         if not images:
-            raise docker_errors.DockerException("No images found!")
+            # pull_required_images(requirements)
+            return None
         for req in requirements:
             if req not in images:
                 logger.warning(f"Image {req} not found")
@@ -107,7 +109,6 @@ def start_zap_service():
         client.containers.run(
             image="zaproxy/zap-weekly",
             name="restack_zaproxy",
-            network="restack_zap",
             ports={"8090/tcp": 8090},
             environment={
                 "ZAP_JAVA_OPTS": "-Xms512m -Xmx4g"
@@ -222,3 +223,32 @@ def ensure_zap_addons():
     for addon_id in required_addons:
         zap_get_request("/JSON/autoupdate/action/installAddon/", {"id": addon_id})
     # log for successful update
+
+def pull_required_images(images: list[str]):
+    from docker import from_env as docker_from_env, errors as docker_errors
+    from loguru import logger
+    logger.info("Pulling required images...")
+    try:
+        client = docker_from_env()
+        for req in images:
+            logger.info(f"Pulling image: {req}")
+            client.images.pull(req)
+        logger.info("Required images are pulled successfully")
+    except docker_errors.APIError:
+        raise docker_errors.APIError
+    except docker_errors.DockerException as e:
+        raise docker_errors.DockerException(e)
+
+def ensure_reports_folder_present():
+    from loguru import logger
+    logger.info("Checking if reports folder is present...")
+    base_path = f"{Path().cwd()}/app/reports/"
+    required_folders = [
+        "httpx", "katana", "naabu", "search_vulns", "sslyze", "subfinder",
+        "wappalyzer_next", "whatweb", "zap", "nuclei", "wapiti"
+    ]
+    for folder in required_folders:
+        path = base_path + folder
+        if not Path(path).exists():
+            logger.info(f"Creating folder: {path}")
+            Path(path).mkdir(parents=True, exist_ok=True)

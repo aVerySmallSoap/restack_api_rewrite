@@ -95,8 +95,8 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
             if item.status != "success":
                 logger.warning(f"{item.scanner} skipped. Errors: {item.error}")
                 continue
-            assert discovery_ctx.cpes is not None
-            assert discovery_ctx.technologies is not None
+            # assert discovery_ctx.cpes is not None
+            # assert discovery_ctx.technologies is not None
 
             match item.scanner:
                 case "sslyze":

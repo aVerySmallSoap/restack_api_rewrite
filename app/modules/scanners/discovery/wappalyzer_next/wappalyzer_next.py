@@ -140,7 +140,7 @@ class WappalyzerNext(IContainerScanner):
         logger.info(f"Spawning container: {self.scanner_name}_{session_id}")
         client = docker.from_env()
         return client.containers.run(
-            image="localhost/wappalyzer",
+            image="iamyourdev/wappalyzer:latest",
             name=f"{self.scanner_name}_{session_id}",
             command=[
                 "--scan-type", "balanced",
@@ -162,7 +162,7 @@ class WappalyzerNext(IContainerScanner):
         logger.info(f"Spawning container: {self.scanner_name}_headless_{session_id}")
         client = docker.from_env()
         return client.containers.run(
-            image="localhost/wappalyzer",
+            image="iamyourdev/wappalyzer:latest",
             name=f"{self.scanner_name}_headless_{session_id}",
             command=[
                 "--scan-type", "full",

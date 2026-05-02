@@ -59,7 +59,6 @@ def task_build_liveliness_context(self, results: list[dict], session_id: str):
                         logger.warning(f"HTTPX returned without results")
                         discovery_ctx.cpes = []
                         discovery_ctx.technologies = []
-                        break
                     if discovery_ctx.cpes is None:
                         discovery_ctx.cpes = []
                     if item.result["technologies"] is not None:

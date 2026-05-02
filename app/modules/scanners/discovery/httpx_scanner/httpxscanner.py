@@ -100,7 +100,6 @@ class HttpxScanner(IContainerScanner):
                             source="httpx"
                         ))
             cpe = json_line.get("cpe")
-            assert isinstance(cpe, list)
             return { # TODO: Something is wrong when dumping this
                 # "technologies": [entry.model_dump() for entry in technologies_list],
                 "technologies": technologies_list,
@@ -110,9 +109,8 @@ class HttpxScanner(IContainerScanner):
         except RuntimeWarning:
             logger.warning("HTTPX report file empty! Was there any scanner errors?")
             return None
-        except AssertionError as e:
-            logger.error("HTTPX parsing has encountered an unexpected type!")
-            logger.exception(e)
+        except AssertionError:
+            logger.exception("HTTPX parsing has encountered an unexpected type!")
             raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:

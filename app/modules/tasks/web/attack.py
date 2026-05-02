@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from billiard import TimeLimitExceeded
+from billiard.exceptions import TimeLimitExceeded
 from loguru import logger
 
 from app.modules.scanners.web.nuclei.nuclei import Nuclei
@@ -94,11 +94,11 @@ def task_build_attack_context(self, results: list[dict], session_id: str):
 
             match item.scanner:
                 case "nuclei":
-                    pass
+                    print(item.result)
                 case "wapiti":
-                    pass
+                    print(item.result)
                 case "zap":
-                    pass
+                    print(item.result)
         with open(f"{Path.cwd()}/app/reports/test.json", "w") as f:
             f.write(json.dumps(attack_ctx.model_dump_json(), indent=4))
     except AssertionError as e:

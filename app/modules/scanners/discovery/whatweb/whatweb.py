@@ -158,7 +158,7 @@ class WhatWeb(IContainerScanner):
         logger.info(f"Spawning container: {self.scanner_name}_{session_id}")
         client = docker.from_env()
         return client.containers.run(
-            image="localhost/whatweb",
+            image="iamyourdev/whatweb:latest",
             name=f"{self.scanner_name}_{session_id}",
             command=[
                 "./whatweb",
