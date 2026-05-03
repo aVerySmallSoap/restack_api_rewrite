@@ -49,25 +49,26 @@ def task_build_liveliness_context(self, results: list[dict], session_id: str):
         for result in results:
             item = ScannerTaskResult.model_validate(result.get("result"))
             assert item is not None
+            assert isinstance(item, ScannerTaskResult)
             if item.status != "success":
                 logger.warning(f"{item.scanner} skipped. Errors: {item.error}")
                 continue
+            discovery_ctx.cpes = []
+            discovery_ctx.technologies = []
 
             match item.scanner:
                 case "httpx": # this assumes to be the first to fill the Discovery Context's technologies cpe field
+                    technologies = item.result.get("technologies", None)
+                    cpes = item.result.get("cpe", None)
                     if item.result is None:
-                        logger.warning(f"HTTPX returned without results")
-                        discovery_ctx.cpes = []
-                        discovery_ctx.technologies = []
-                    if discovery_ctx.cpes is None:
-                        discovery_ctx.cpes = []
-                    if item.result["technologies"] is not None:
+                        logger.warning("HTTPX returned without results")
+                        raise RuntimeWarning
+                    if technologies:
                         discovery_ctx.technologies = item.result["technologies"]
-                    else:
-                        discovery_ctx.technologies = []
-                    cpe_list: list = item.result["cpe"]
-                    cpe_list.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
-                    discovery_ctx.cpes = cpe_list
+                    if cpes:
+                        cpe_list: list = item.result["cpe"]
+                        cpe_list.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
+                        discovery_ctx.cpes = cpe_list
     except AssertionError as e:
         logger.error("An object has an unexpected value!")
         logger.exception(e)
@@ -76,4 +77,5 @@ def task_build_liveliness_context(self, results: list[dict], session_id: str):
         logger.error("Something unexpected happened!")
         logger.exception(e)
         raise
+    redis_client.set(f"phase:{session_id}", "liveliness")
     redis_client.set(f"discovery:{session_id}", discovery_ctx.model_dump_json())

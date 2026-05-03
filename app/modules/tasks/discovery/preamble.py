@@ -87,19 +87,19 @@ def task_build_preamble_context(self, results: list[dict], discovery_context: st
             match item.scanner:
                 case "katana":
                     if item.result is None:
-                        logger.warning(f"Katana returned without results")
+                        logger.warning("Katana returned without results")
                         continue
                     discovery_ctx.site_map = item.result["siteMap"]
                     discovery_ctx.endpoints = item.result["endPoints"]
                     discovery_ctx.out_of_scope = item.result["outOfScope"]
                 case "naabu":
                     if item.result is None:
-                        logger.warning(f"Naabu returned without results")
+                        logger.warning("Naabu returned without results")
                         continue
                     discovery_ctx.ports = item.result["ports"]
                 case "subfinder":
                     if item.result is None:
-                        logger.warning(f"Subfinder returned without results")
+                        logger.warning("Subfinder returned without results")
                         continue
                     discovery_ctx.domains = item.result
     except AssertionError as e:
@@ -110,4 +110,5 @@ def task_build_preamble_context(self, results: list[dict], discovery_context: st
         logger.error("Something unexpected happened!")
         logger.exception(e)
         raise RuntimeWarning
+    redis_client.set(f"phase:{session_id}", "preamble")
     redis_client.set(f"discovery:{session_id}", discovery_ctx.model_dump_json())

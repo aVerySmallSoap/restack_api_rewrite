@@ -14,6 +14,7 @@ class WapitiScanner(ICliScanner):
     report_path = f"{Path.cwd()}/app/reports/wapiti"
     scanner_name = "wapiti"
     scanner_type = "cli"
+    _wstg_to_json_path = f"{Path.cwd()}/app/modules/scanners/web/wapiti/templates/wstg_to_cve.json"
     _config: WapitiConfig
     _builder: WapitiConfigBuilder
     _timeout = 18_000
@@ -130,9 +131,13 @@ class WapitiScanner(ICliScanner):
         pass
 
     def build_command(self, session_id: str, ctx: ScanContext) -> list[str]:
+        localtest = ["http://10.89.4.3"] # test line
+        wapiti_url = ctx.primary_url # test line
+        if wapiti_url in localtest: # test line
+            wapiti_url = "http://localhost:4280" #test line
         return (
             self._builder
-            .url(ctx.primary_url)
+            .url(wapiti_url)
             .output(f"{self.report_path}/{session_id}.json")
             .build()
         )
@@ -144,7 +149,7 @@ class WapitiScanner(ICliScanner):
         :param report: report to read and rewrite
         """
         import json
-        with open("templates/wstg_to_cwe.json", "r") as file:
+        with open(self._wstg_to_json_path, "r") as file:
             mapping = json.load(file)
             for category in report["vulnerabilities"]:
                 rule = {"id": category, "shortDescription": {"text": category}}

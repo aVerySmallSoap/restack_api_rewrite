@@ -7,8 +7,9 @@ from loguru import logger
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.interfaces.types.context import ScanContext
-from app.modules.scanners.web.nuclei.nuclei_context import NucleiContext
+from app.modules.scanners.web.nuclei.nuclei_context import NucleiContext, NucleiRecord, NucleiInfo
 from app.modules.utils.utils import text_io_to_dict_list
+from app.modules.scanners.web.nuclei.nuclei_context import NucleiClassification
 
 
 class Nuclei(IContainerScanner):
@@ -56,6 +57,7 @@ class Nuclei(IContainerScanner):
                 runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         except Exception as e:
+            logger.exception(e)
             if "timeout" in str(e).lower():
                 status = "timeout"
             else:
@@ -73,33 +75,36 @@ class Nuclei(IContainerScanner):
 
     def parse_results(self, session_id: str) -> dict:
         _json_items: list[dict]
-        _returnable: list[dict] = []
+        _returnable: list[NucleiRecord] = []
         with open(f"{self.report_path}/{session_id}.json", "r") as f:
             _json_items = text_io_to_dict_list(f)
             for record in _json_items:
-                _cve_id = record["info"]["classification"]["cve-id"] if record["info"]["classification"][
-                                "cve-id"] else None
-                _cwe_id = record["info"]["classification"]["cwe-id"] if record["info"]["classification"][
-                                "cwe-id"] else None,
-                _returnable.append({
-                    "template": record["template"],
-                    "templateId": record["template-id"],
-                    "info": {
-                        "name": record["info"]["name"],
-                        "tags": record["info"]["tags"],
-                        "description": record["info"].get("description", None),
-                        "reference": record["info"].get("reference", None),
-                        "severity": record["info"]["severity"],
-                        "classification": {
-                            "cve-id": _cve_id,
-                            "cwe-id": _cwe_id
-                        } if record["info"].get("classification") else None
-                    },
-                    "url": record["url"],
-                    "matchedAt": record["matched-at"],
-                    "request": record["request"],
-                    "curlCommand": record.get("curl-command", None),
-                })
+                classification = None
+                _cve_id = None
+                _cwe_id = None
+                if record["info"].get("classification", None):
+                    classification = NucleiClassification(
+                        cve_id = record["info"]["classification"]["cve-id"],
+                        cwe_id = record["info"]["classification"]["cwe-id"]
+                    )
+                info = NucleiInfo(
+                    name = record["info"]["name"],
+                    tags = record["info"]["tags"],
+                    description = record["info"].get("description", None),
+                    severity= record["info"]["severity"],
+                    reference= record["info"].get("reference", None),
+                    classification=classification
+                )
+                _returnable.append(NucleiRecord(
+                    data=None,
+                    template=record["template"],
+                    template_id=record["template-id"],
+                    url=record["url"],
+                    info=info,
+                    matched_at=record["matched-at"],
+                    request=record["request"],
+                    curl_command=record.get("curl-command", None)
+                ))
             return {
                 "data": _returnable
             }

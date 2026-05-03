@@ -93,6 +93,7 @@ class SearchVulnsQuery(ICliScanner):
                         continue
                     _returnable.append({tech: info})
             self._discovery_context.queried_vulnerabilities = _returnable
+            redis_client.set(f"phase:{session_id}", "vuln_query")
             redis_client.set(f"discovery:{session_id}", self._discovery_context.model_dump_json())
             return {
                 "vulnerable_technologies": _returnable

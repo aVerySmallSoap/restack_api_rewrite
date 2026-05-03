@@ -67,7 +67,6 @@ class HttpxScanner(IContainerScanner):
 
     #noinspection D
     def parse_results(self, session_id: str) -> dict | None:
-        # TODO: The scanner involves some custom keys for different CMS', explore and add them later
         logger.info(f"Parsing HTTPX results for session: {session_id}")
         technologies_list: list[TechEntry] = []
         report_path = f"{self.report_path}/{session_id}.json"
@@ -79,7 +78,7 @@ class HttpxScanner(IContainerScanner):
                 for line in f.read().splitlines():
                     json_line: dict = json.loads(line) # I do not know yet if this will change into an array if multiple urls are fed
                     if json_line.get("failed"):
-                        raise Exception("httpx failed")
+                        raise RuntimeWarning("httpx failed")
                     technologies = json_line.get("tech")
                     if not json_line:
                         continue # may be a break or return when empty. Need to test
@@ -100,12 +99,20 @@ class HttpxScanner(IContainerScanner):
                             source="httpx"
                         ))
             cpe = json_line.get("cpe")
-            return { # TODO: Something is wrong when dumping this
-                # "technologies": [entry.model_dump() for entry in technologies_list],
-                "technologies": technologies_list,
-                "cpe": [entry["cpe"] for entry in cpe],
-                "tls": json_line.get("tls"),
-            }
+            if cpe is None:
+                return {
+                    "technologies": technologies_list,
+                    "cpe": None,
+                    "tls": json_line.get("tls"),
+                }
+            else:
+                assert isinstance(cpe, list)
+                return {
+                    # "technologies": [entry.model_dump() for entry in technologies_list],
+                    "technologies": technologies_list,
+                    "cpe": [entry["cpe"] for entry in cpe],
+                    "tls": json_line.get("tls"),
+                }
         except RuntimeWarning:
             logger.warning("HTTPX report file empty! Was there any scanner errors?")
             return None

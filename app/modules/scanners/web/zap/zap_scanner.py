@@ -202,11 +202,14 @@ class ZapScanner(IAPIScanner):
                 }
             ]
         }
+        with open(f"{self.report_path}/{session_id}.json", "w") as outfile:
+            json.dump(_sarif_report, outfile, indent=4)
         return _sarif_report
 
     def cleanup(self, session_id: str) -> None:
-        logger.info("Cleaning up HTTPX artifacts")
-        Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
+        # logger.info("Cleaning up HTTPX artifacts")
+        # Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
+        pass
 
     def submit_scan(self, session_id: str, ctx: ScanContext) -> str:
         import requests

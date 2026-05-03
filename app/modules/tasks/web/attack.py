@@ -94,13 +94,22 @@ def task_build_attack_context(self, results: list[dict], session_id: str):
 
             match item.scanner:
                 case "nuclei":
-                    print(item.result)
+                    if item.result is None:
+                        logger.warning("Skipping Nuclei results! Reason: empty result")
+                        continue
+                    attack_ctx.nuclei_result = item.result["data"]
                 case "wapiti":
-                    print(item.result)
+                    if item.result is None:
+                        logger.warning("Skipping Wapiti results! Reason: empty result")
+                        continue
+                    attack_ctx.wapiti_result = item.result
                 case "zap":
-                    print(item.result)
-        with open(f"{Path.cwd()}/app/reports/test.json", "w") as f:
-            f.write(json.dumps(attack_ctx.model_dump_json(), indent=4))
+                    if item.result is None:
+                        logger.warning("Skipping Wapiti results! Reason: empty result")
+                        continue
+                    attack_ctx.zap_result = item.result
+        with open(f"{Path.cwd()}/app/reports/attack_context_{session_id}.json", "w") as f:
+            f.write(attack_ctx.model_dump_json(indent=4))
     except AssertionError as e:
         logger.error("An object has an unexpected value!")
         logger.exception(e)

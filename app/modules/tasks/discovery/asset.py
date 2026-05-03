@@ -73,8 +73,6 @@ def task_wappalyzer(self, liveliness_ctx: str, session_id: str, ctx_json: str) -
             runtime_ms=300
         ).model_dump()
 
-    ctx = ScanContext(**json.loads(ctx_json))
-
 @celery_app.task(
     bind=True,
     soft_time_limit=240,
@@ -95,21 +93,21 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
             if item.status != "success":
                 logger.warning(f"{item.scanner} skipped. Errors: {item.error}")
                 continue
-            # assert discovery_ctx.cpes is not None
-            # assert discovery_ctx.technologies is not None
+            assert discovery_ctx.cpes is not None
+            assert discovery_ctx.technologies is not None
 
             match item.scanner:
                 case "sslyze":
                     pass
                 case "whatweb":
                     if item.result is None:
-                        logger.warning(f"WhatWeb returned without results")
+                        logger.warning("WhatWeb returned without results")
                         continue
                     discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(item.result["technologies"]))
                     discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
                 case "wappalyzer":
                     if item.result is None:
-                        logger.warning(f"Wappalyzer-next returned without results")
+                        logger.warning("Wappalyzer-next returned without results")
                         continue
                     discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(item.result["technologies"]))
                     discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
@@ -121,4 +119,5 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
         logger.error("Something unexpected happened!")
         logger.exception(e)
         raise
+    redis_client.set(f"phase:{session_id}", "attack")
     redis_client.set(f"discovery:{session_id}", discovery_ctx.model_dump_json())

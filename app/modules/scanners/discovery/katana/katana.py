@@ -105,7 +105,7 @@ class Katana(IContainerScanner):
                     if index == len(paths) - 1:
                         raise RuntimeWarning
                     continue
-                with open(path, "r") as file:
+                with open(path[index], "r") as file:
                     for line in file.read().splitlines():
                         record = json.loads(line)
                         _endpoint = record["request"].get("endpoint")
