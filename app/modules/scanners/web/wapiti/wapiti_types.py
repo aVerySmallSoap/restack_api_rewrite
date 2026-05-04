@@ -15,15 +15,15 @@ class WapitiConfig(BaseModel):
     level: int                                                      = 1 # 1 or 2
     flush_attacks: bool                                             = True
     flush_session: bool                                             = True
-    depth: int                                                      = 50
-    max_scan_time: int                                              = 360
-    max_attack_time: int                                            = 360
+    depth: int                                                      = 2
+    max_scan_time: int                                              = 120
+    max_attack_time: int                                            = None
     force: WapitiScanForceValues                                    = WapitiScanForceValues.NORMAL
     tasks: int                                                      = 4
-    timeout: int                                                    = 15
-    verify_ssl: WapitiVerifySSLValues                               = WapitiVerifySSLValues.YES
+    timeout: int                                                    = None
+    verify_ssl: WapitiVerifySSLValues                               = WapitiVerifySSLValues.NO
     colored: bool                                                   = False
-    verbose: bool                                                   = 2
+    verbose: int                                                   = 2
     format: str                                                     = "json"
     output: str                                                     = ""
     detailed_report: int                                            = 1
@@ -51,7 +51,7 @@ class WapitiConfig(BaseModel):
 
     # URL control
     start: Optional[str]                                            = None # URL
-    exclude: Optional[str]                                          = None # URL
+    exclude: Optional[str]                                          = "http://127.0.0.1:4280/logout.php" # URL
     remove: Optional[str]                                           = None # See -r
     skip: Optional[str]                                             = None # See --skip
     max_links_per_page: Optional[int]                               = None
@@ -69,7 +69,6 @@ class WapitiConfig(BaseModel):
     # extra
     log: Optional[str] = None # path
 
-@dataclass
-class WapitiFlagDefinition:
+class WapitiFlagDefinition(BaseModel):
     flag: str
     takes_value: bool

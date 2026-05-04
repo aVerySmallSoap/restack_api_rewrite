@@ -53,63 +53,123 @@ def is_same_host(host: str, endpoint: str) -> bool:
 # misc
 
 #noinspection D
-def text_io_to_dict_list(text: TextIO) -> list[dict]:
+def text_io_to_dict_list(text: TextIO, strict: bool) -> list[dict]:
     """
-    Walks each character of the text and converts it into a dictionary.
-    The stream does not need to be one valid JSON document, but each extracted object must be valid JSON.
-    :param text: The stream to be parsed
-    :return: list of dictionaries
-    :raises: JSONDecodeError
-    """
+       Extract JSON objects from a text stream.
+
+       The stream does not need to be one valid JSON document. It may contain:
+       - JSONL objects
+       - multiple adjacent JSON objects
+       - blank lines
+       - scanner noise before/between objects
+       - NUL padding bytes decoded as "\\x00"
+
+       Only top-level JSON objects are extracted. Top-level arrays are ignored.
+
+       :param text: Text stream to parse.
+       :param strict: If True, raise JSONDecodeError on malformed extracted objects
+                      or trailing incomplete JSON. If False, skip bad/trailing data.
+       :return: list of dictionaries.
+       """
+    from json import JSONDecodeError, loads as json_loads
     from loguru import logger
-    import json
-    _stack: list = []
-    _json_items: list[dict] = []
-    line_item: str = ""
-    try:
-        _in_string: bool = False
-        _escaped: bool = False
-        for char in text.read():
-            line_item += char
+    stack: list[str] = []
+    json_items: list[dict] = []
 
-            if _in_string:
-                if _escaped:
-                    _escaped = False
-                elif char == "\\":
-                    _escaped = True
-                elif char == "\"":
-                    _in_string = False
+    buffer: list[str] = []
+    in_string = False
+    escaped = False
+    object_start_offset: int | None = None
+    absolute_offset = 0
+
+    def reset_object_state() -> None:
+        nonlocal buffer, stack, in_string, escaped, object_start_offset
+        buffer = []
+        stack = []
+        in_string = False
+        escaped = False
+        object_start_offset = None
+
+    for char in text.read():
+        absolute_offset += 1
+
+        # Ignore NUL bytes outside JSON objects. These showed up in your Nuclei file.
+        if not stack and char == "\x00":
+            continue
+
+        # Ignore everything until a JSON object begins.
+        if not stack:
+            if char != "{":
                 continue
 
-            if char == "\"":
-                _in_string = True
-                continue
-            if char == "{":
-                _stack.append(char)
-                continue
+            stack.append("{")
+            buffer = ["{"]
+            object_start_offset = absolute_offset - 1
+            continue
 
-            if char == "}":
-                if not _stack:
-                    raise json.JSONDecodeError(
-                        "Unexpected closing brace",
-                        line_item,
-                        len(line_item) - 1,
+        # From here on, we are inside a JSON object.
+        buffer.append(char)
+
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == "\"":
+                in_string = False
+            continue
+
+        if char == "\"":
+            in_string = True
+            continue
+
+        if char == "{":
+            stack.append("{")
+            continue
+
+        if char == "}":
+            stack.pop()
+
+            if not stack:
+                object_text = "".join(buffer)
+
+                try:
+                    parsed = json_loads(object_text)
+                except JSONDecodeError:
+                    logger.exception(
+                        "Invalid JSON object detected at offset {}. Preview: {!r}",
+                        object_start_offset,
+                        object_text[:300],
                     )
-                _stack.pop()
-                if len(_stack) == 0:
-                    _json_items.append(json.loads(line_item))
-                    line_item = ""
+                    reset_object_state()
 
-        if line_item.strip():
-            raise json.JSONDecodeError(
-                "Incomplete or trailing JSON content",
-                line_item,
-                len(line_item) - 1,
-            )
-        return _json_items
-    except json.JSONDecodeError:
-        logger.exception("Invalid JSON was detected during parsing.")
-        raise
+                    if strict:
+                        raise
+
+                    continue
+
+                if isinstance(parsed, dict):
+                    json_items.append(parsed)
+                else:
+                    logger.warning(
+                        "Skipping non-dict JSON value at offset {}: {}",
+                        object_start_offset,
+                        type(parsed).__name__,
+                    )
+
+                reset_object_state()
+
+    # If the stream ended while inside an object.
+    if stack:
+        trailing = "".join(buffer)
+        message = "Incomplete JSON object at end of stream"
+
+        logger.warning("{} starting at offset {}. Preview: {!r}", message, object_start_offset, trailing[:300])
+
+        if strict:
+            raise JSONDecodeError(message, trailing, max(len(trailing) - 1, 0))
+
+    return json_items
 
 def list_to_str(items: list, separator: str = ",") -> str:
     """

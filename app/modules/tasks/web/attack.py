@@ -12,6 +12,7 @@ from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
 from app.modules.scanners.web.zap.zap_scanner import ZapScanner
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.tasks.web.attack_context import AttackContext
+from app.modules.scanners.web.nuclei.nuclei_context import NucleiRecord
 
 
 @celery_app.task(
@@ -78,7 +79,6 @@ def task_zap(self, previous_context: str, session_id:str, scan_context: str):
 )
 def task_build_attack_context(self, results: list[dict], session_id: str):
     raw = redis_client.get(f"discovery:{session_id}")
-    print(results)
     if raw is None:
         raise ValueError(f"Missing discovery context for session {session_id}")
     discovery_ctx = DiscoveryContext.model_validate_json(raw)
@@ -97,7 +97,7 @@ def task_build_attack_context(self, results: list[dict], session_id: str):
                     if item.result is None:
                         logger.warning("Skipping Nuclei results! Reason: empty result")
                         continue
-                    attack_ctx.nuclei_result = item.result["data"]
+                    attack_ctx.nuclei_result = item.result
                 case "wapiti":
                     if item.result is None:
                         logger.warning("Skipping Wapiti results! Reason: empty result")

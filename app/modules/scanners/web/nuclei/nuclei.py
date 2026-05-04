@@ -3,6 +3,7 @@ from pathlib import Path
 
 from docker.models.containers import Container
 from loguru import logger
+from pydantic import AnyUrl
 
 from app.modules.interfaces.enums.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
@@ -73,11 +74,11 @@ class Nuclei(IContainerScanner):
         finally:
             self.cleanup(session_id)
 
-    def parse_results(self, session_id: str) -> dict:
+    def parse_results(self, session_id: str) -> dict | None:
         _json_items: list[dict]
         _returnable: list[NucleiRecord] = []
         with open(f"{self.report_path}/{session_id}.json", "r") as f:
-            _json_items = text_io_to_dict_list(f)
+            _json_items = text_io_to_dict_list(f, False)
             for record in _json_items:
                 classification = None
                 _cve_id = None
@@ -99,15 +100,13 @@ class Nuclei(IContainerScanner):
                     data=None,
                     template=record["template"],
                     template_id=record["template-id"],
-                    url=record["url"],
+                    url=record.get("url", ""),
                     info=info,
                     matched_at=record["matched-at"],
-                    request=record["request"],
+                    request=record.get("request", None),
                     curl_command=record.get("curl-command", None)
                 ))
-            return {
-                "data": _returnable
-            }
+            return self._parse_to_sarif(_returnable)
 
     def cleanup(self, session_id: str) -> None:
         from docker import errors as docker_errors, from_env as docker_env
@@ -174,3 +173,57 @@ class Nuclei(IContainerScanner):
             detach=True,
             auto_remove=False,
         )
+
+    @staticmethod
+    def _parse_to_sarif(results: list[NucleiRecord]) -> dict | None:
+        if results is None:
+            return None
+        nuclei_results = results
+        _sarif_rules: list = []
+        _sarif_results: list = []
+        for result in nuclei_results:
+            _sarif_rules.append({
+                "id": result.template_id,
+                "name": result.template,
+                "fullDescription": {"text": result.info.description},
+                "help": {
+                    "text": result.info.reference
+                },
+                "properties": {
+                    "curlCommand": result.curl_command,
+                    "request": result.request,
+                    "tags": result.info.tags,
+                    "classification": result.info.classification
+                },
+                "level": result.info.severity
+            })
+            _sarif_results.append({
+                "ruleId": result.template_id,
+                "message": {"text": result.info.description},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": result.matched_at}
+                        }
+                    }
+                ],
+                "properties": {
+                    "severity": result.info.severity,
+                }
+            })
+
+        _sarif_report = {
+            "version": "2.1.0",
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "Nuclei",
+                            "rules": _sarif_rules
+                        }
+                    },
+                    "results": _sarif_results
+                }
+            ]
+        }
+        return _sarif_report

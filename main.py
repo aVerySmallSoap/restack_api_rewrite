@@ -11,6 +11,7 @@ from app.modules.interfaces.types.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
 from app.modules.scanners.discovery.search_vulns.search_vulns_query import SearchVulnsQuery
+from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
 
 
 @asynccontextmanager
@@ -35,11 +36,11 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/", summary="Testing enpoint for individual scanners")
 async def root():
     session_id: str = str(uuid.uuid4())
-    target = "http://10.89.0.3"
+    target = "http://127.0.0.1:4280"
     # target = "https://his.dnsc.edu.ph"
     ctx: ScanContext = ScanContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc, config=None)
-    queriable = SearchVulnsQuery()
-    queriable.start_scan(session_id, ctx)
+    wapiti_scanner = WapitiScanner()
+    wapiti_scanner.start_scan(session_id, ctx)
     return {"session_id": session_id}
 
 @app.get("/scan")

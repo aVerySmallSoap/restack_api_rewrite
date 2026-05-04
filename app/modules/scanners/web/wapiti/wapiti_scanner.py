@@ -36,13 +36,10 @@ class WapitiScanner(ICliScanner):
             _discovery_context: DiscoveryContext = DiscoveryContext.model_validate_json(raw)
             assert _discovery_context.technologies is not None
 
-            process = subprocess.run(
-                commands,
-                capture_output=True,
-                text=True,
-                timeout=self._timeout,
-                check=False
+            process = subprocess.Popen(
+                commands
             )
+            process.wait()
             if process.returncode != 0:
                 raise subprocess.SubprocessError
 
@@ -51,7 +48,7 @@ class WapitiScanner(ICliScanner):
                 phase="attack",
                 status="success",
                 result=self.parse_results(session_id),
-                stdout=process.stdout,
+                stdout=None,
                 exit_code=process.returncode,
                 runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
@@ -131,13 +128,13 @@ class WapitiScanner(ICliScanner):
         pass
 
     def build_command(self, session_id: str, ctx: ScanContext) -> list[str]:
-        localtest = ["http://10.89.4.3"] # test line
-        wapiti_url = ctx.primary_url # test line
-        if wapiti_url in localtest: # test line
-            wapiti_url = "http://localhost:4280" #test line
+        # localtest = ["http://10.89.4.3"] # test line
+        # wapiti_url = ctx.primary_url # test line
+        # if wapiti_url in localtest: # test line
+        #     wapiti_url = "http://localhost:4280" #test line
         return (
             self._builder
-            .url(wapiti_url)
+            .url(ctx.primary_url)
             .output(f"{self.report_path}/{session_id}.json")
             .build()
         )

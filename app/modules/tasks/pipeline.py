@@ -11,6 +11,7 @@ from app.modules.tasks.discovery.minor_tasks import task_search_vuln_query
 from app.modules.tasks.web.attack import (
     task_nuclei, task_wapiti, task_zap, task_build_attack_context
 )
+from app.modules.tasks.normalization.normalization import task_basic_normalization
 
 
 def launch_pipeline(session_id: str, ctx: ScanContext):
@@ -65,5 +66,6 @@ def launch_pipeline(session_id: str, ctx: ScanContext):
         asset_phase, # Phase 0.7: Is there any significant information?
         task_search_vuln_query.s(session_id, ctx_json),
         attack_phase,
+        task_basic_normalization.s(session_id),
     )
     full_pipeline.apply_async()

@@ -70,6 +70,7 @@ class Katana(IContainerScanner):
             ).model_dump()
 
         except Exception as e:
+            logger.exception(e)
             if "timeout" in str(e).lower():
                 status = "timeout"
             else:
@@ -105,7 +106,7 @@ class Katana(IContainerScanner):
                     if index == len(paths) - 1:
                         raise RuntimeWarning
                     continue
-                with open(path[index], "r") as file:
+                with open(paths[index], "r") as file:
                     for line in file.read().splitlines():
                         record = json.loads(line)
                         _endpoint = record["request"].get("endpoint")

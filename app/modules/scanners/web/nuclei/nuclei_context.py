@@ -25,5 +25,5 @@ class NucleiRecord(BaseContext):
     url: str
     info: NucleiInfo
     matched_at: str
-    request: str
+    request: Optional[str] = None
     curl_command: Optional[str] = None

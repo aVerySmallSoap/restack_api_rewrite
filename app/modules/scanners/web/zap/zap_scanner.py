@@ -70,6 +70,8 @@ class ZapScanner(IAPIScanner):
     def parse_results(self, session_id: str) -> dict | None:
         import json
         logger.info(f"Parsing OWASP Zap results for session: {session_id}")
+        logger.info("Waiting 60 seconds to let Zap rest...") # A hack to wait for zap requests, since if we do it instantly it does not return anything
+        time.sleep(60)
         alerts = self._zap_instance.core.alerts(baseurl=self._target)
         if alerts is None:
             return None
@@ -101,9 +103,9 @@ class ZapScanner(IAPIScanner):
                     },
                     "properties": {
                         "cwe": alert.get("cweid", None),
-                        "wasc": alert.get("wascid", None),
-                        "risk": alert.get("risk", None)
-                    }
+                        "wasc": alert.get("wascid", None)
+                    },
+                    "level": alert.get("risk", None)
                 })
             returnable_alerts.append({
                 "id": alert["id"],

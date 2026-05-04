@@ -21,5 +21,6 @@ celery_app.conf.update(
 celery_app.autodiscover_tasks([
     "app.modules.tasks",
     "app.modules.tasks.web.attack",
-    "app.modules.tasks.discovery.minor_tasks"
+    "app.modules.tasks.discovery.minor_tasks",
+    "app.modules.tasks.normalization.normalization",
 ])

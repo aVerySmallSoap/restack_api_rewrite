@@ -7,6 +7,6 @@ from app.modules.scanners.web.nuclei.nuclei_context import NucleiRecord
 
 class AttackContext(BaseContext):
     discovery_context: DiscoveryContext
-    nuclei_result: Optional[list[NucleiRecord]] = None
+    nuclei_result: Optional[dict] = None
     wapiti_result: Optional[dict] = None
     zap_result: Optional[dict] = None
