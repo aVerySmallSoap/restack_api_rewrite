@@ -1,12 +1,11 @@
-fastapi[standard]
-docker
-wappalyzer
-redis
-sslyze
-loguru
-celery
-wapiti3
-pydantic
-zaproxy
-orjson
-search_vulns
+fastapi[standard]==0.136.1
+docker==7.1.0
+wappalyzer==2.0.0
+redis==7.4.0
+sslyze==6.3.1
+loguru==0.7.3
+celery==5.6.3
+wapiti3 >= 3.2.10
+pydantic >= 2.13.4
+zaproxy >= 0.5.0
+search_vulns >= 1.0.9

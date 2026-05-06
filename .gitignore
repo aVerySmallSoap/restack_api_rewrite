@@ -1,7 +1,14 @@
+#artifacts
+.idea/
+
+
+#environments
+.venv/
+.env
+
+#logs and reports
 logs/*
 reports/*
-.env
-.venv/
-app/templates/nuclei
-app/templates/zap
-.idea
+
+#volume mounts
+app/templates/
