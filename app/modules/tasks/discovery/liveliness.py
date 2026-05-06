@@ -58,11 +58,13 @@ def task_build_liveliness_context(self, results: list[dict], session_id: str):
 
             match item.scanner:
                 case "httpx": # this assumes to be the first to fill the Discovery Context's technologies cpe field
-                    technologies = item.result.get("technologies", None)
-                    cpes = item.result.get("cpe", None)
                     if item.result is None:
                         logger.warning("HTTPX returned without results")
                         raise RuntimeWarning
+                    assert item.result is not None
+                    assert isinstance(item.result, dict)
+                    technologies = item.result.get("technologies", None)
+                    cpes = item.result.get("cpe", None)
                     if technologies:
                         discovery_ctx.technologies = item.result["technologies"]
                     if cpes:

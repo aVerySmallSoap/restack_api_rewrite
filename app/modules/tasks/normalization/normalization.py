@@ -225,10 +225,6 @@ def task_basic_normalization(self, results: dict, session_id: str):
     wapiti_scan_results = parse_wapiti_sarif_results(attack_context)
     nuclei_scan_results = parse_nuclei_sarif_results(attack_context)
 
-    zap_scan_result_collection: list[SARIFResult] = []
-    wapiti_scan_result_collection: list[SARIFResult] = []
-    nuclei_scan_result_collection: list[SARIFResult] = []
-
     intersection_list: list[SARIFResult] = []
     union_list: list[SARIFResult] = []
 
@@ -237,10 +233,10 @@ def task_basic_normalization(self, results: dict, session_id: str):
     nuclei_mapped_rules = map_rules(nuclei_rule_collection)
 
     # match and compare zap and wapiti results
-    for zap_result in zap_scan_result_collection:
+    for zap_result in zap_scan_results:
             zap_rule = zap_mapped_rules.get(zap_result.rule_id)
             assert isinstance(zap_rule, SARIFRule)
-            for wapiti_result in wapiti_scan_result_collection:
+            for wapiti_result in wapiti_scan_results:
                 wapiti_rule = wapiti_mapped_rules.get(wapiti_result.rule_id)
                 assert isinstance(wapiti_rule, SARIFRule)
 
@@ -268,7 +264,7 @@ def task_basic_normalization(self, results: dict, session_id: str):
     # This does nothing btw
     for intersection_result in intersection_list:
         zap_rule = zap_mapped_rules.get(intersection_result.rule_id)
-        for nuclei_result in nuclei_scan_result_collection:
+        for nuclei_result in nuclei_scan_results:
             nuclei_rule = nuclei_mapped_rules.get(nuclei_result.rule_id)
             assert isinstance(nuclei_rule, SARIFRule)
 

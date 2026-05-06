@@ -82,22 +82,22 @@ class HttpxScanner(IContainerScanner):
                     technologies = json_line.get("tech")
                     if not json_line:
                         continue # may be a break or return when empty. Need to test
-                    assert isinstance(technologies, list)
-                    for tech in technologies:
-                        # each entry is a string with a structure of name:version
-                        arr = tech.split(":") if tech.__contains__(":") else [tech]
-                        if len(arr) == 1:
+                    if technologies:
+                        for tech in technologies:
+                            # each entry is a string with a structure of name:version
+                            arr = tech.split(":") if tech.__contains__(":") else [tech]
+                            if len(arr) == 1:
+                                technologies_list.append(TechEntry(
+                                    name=arr[0],
+                                    version="",
+                                    source="httpx"
+                                ))
+                                continue
                             technologies_list.append(TechEntry(
                                 name=arr[0],
-                                version="",
+                                version=arr[1],
                                 source="httpx"
                             ))
-                            continue
-                        technologies_list.append(TechEntry(
-                            name=arr[0],
-                            version=arr[1],
-                            source="httpx"
-                        ))
             cpe = json_line.get("cpe")
             if cpe is None:
                 return {
@@ -108,7 +108,6 @@ class HttpxScanner(IContainerScanner):
             else:
                 assert isinstance(cpe, list)
                 return {
-                    # "technologies": [entry.model_dump() for entry in technologies_list],
                     "technologies": technologies_list,
                     "cpe": [entry["cpe"] for entry in cpe],
                     "tls": json_line.get("tls"),
