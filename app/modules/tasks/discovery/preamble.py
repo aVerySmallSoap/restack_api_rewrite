@@ -8,6 +8,10 @@ from app.modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.scanners.discovery import Katana, Naabu, Subfinder
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.interfaces.types.options import ScannerTaskResult
+from app.modules.database.persistance.phases import mark_phase_as
+from app.modules.interfaces.enums.scan_tracking import ScanPhase
+from modules.database.persistance.phases import mark_phase_as_errored
+
 
 @celery_app.task(
     bind=True,
@@ -102,13 +106,16 @@ def task_build_preamble_context(self, results: list[dict], discovery_context: st
                         logger.warning("Subfinder returned without results")
                         continue
                     discovery_ctx.domains = item.result
-    except AssertionError as e:
-        logger.error("An object has an unexpected value!")
-        logger.exception(e)
-        raise AssertionError
     except Exception as e:
-        logger.error("Something unexpected happened!")
         logger.exception(e)
-        raise RuntimeWarning
+        mark_phase_as_errored(
+            report_id=session_id,
+            phase=ScanPhase.PREAMBLE,
+        )
+        raise
+    mark_phase_as(
+        report_id=session_id,
+        phase=ScanPhase.PREAMBLE,
+    )
     redis_client.set(f"phase:{session_id}", "preamble")
     redis_client.set(f"discovery:{session_id}", discovery_ctx.model_dump_json())

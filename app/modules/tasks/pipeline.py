@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from celery import chain, chord, group
 
 from app.modules.tasks import (
@@ -12,6 +14,10 @@ from app.modules.tasks.web.attack import (
     task_nuclei, task_wapiti, task_zap, task_build_attack_context
 )
 from app.modules.tasks.normalization.normalization import task_basic_normalization
+from app.modules.database.persistance.scans import create_scan
+from app.modules.interfaces.enums.scan_tracking import ScanTypes
+from app.modules.database.persistance.phases import mark_phase_as
+from app.modules.interfaces.enums.scan_tracking import ScanPhase
 
 
 def launch_pipeline(session_id: str, ctx: ScanContext):
@@ -21,6 +27,15 @@ def launch_pipeline(session_id: str, ctx: ScanContext):
     redis_client.set(f"discovery:{session_id}", discovery_context.model_dump_json())
     ctx_json = ctx.to_json()
     discovery_json = discovery_context.model_dump_json()
+
+    # Create a scan record on the database
+    scan_record = create_scan(
+        session_id=session_id,
+        scan_type=ScanTypes.FULL,
+        is_automated=False,
+        scan_date=datetime.now(),
+        target=ctx.primary_host
+    )
 
     # Asset Discovery
 

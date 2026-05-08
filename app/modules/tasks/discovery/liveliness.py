@@ -9,6 +9,8 @@ from app.modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.utils.utils import tech_to_cpe, resolve_tech_to_tech_entry
 from app.modules.interfaces.types.options import ScannerTaskResult
+from app.modules.database.persistance.phases import mark_phase_as_errored, mark_phase_as
+from app.modules.interfaces.enums.scan_tracking import ScanPhase
 
 
 @celery_app.task(
@@ -71,13 +73,16 @@ def task_build_liveliness_context(self, results: list[dict], session_id: str):
                         cpe_list: list = item.result["cpe"]
                         cpe_list.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
                         discovery_ctx.cpes = cpe_list
-    except AssertionError as e:
-        logger.error("An object has an unexpected value!")
-        logger.exception(e)
-        raise
     except Exception as e:
-        logger.error("Something unexpected happened!")
         logger.exception(e)
+        mark_phase_as_errored(
+            report_id=session_id,
+            phase=ScanPhase.LIVELINESS,
+        )
         raise
+    mark_phase_as(
+        report_id=session_id,
+        phase=ScanPhase.LIVELINESS,
+    )
     redis_client.set(f"phase:{session_id}", "liveliness")
     redis_client.set(f"discovery:{session_id}", discovery_ctx.model_dump_json())

@@ -13,6 +13,8 @@ from app.modules.scanners.web.zap.zap_scanner import ZapScanner
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.tasks.web.attack_context import AttackContext
 from app.modules.scanners.web.nuclei.nuclei_context import NucleiRecord
+from app.modules.database.persistance.phases import mark_phase_as_errored, mark_phase_as
+from app.modules.interfaces.enums.scan_tracking import ScanPhase
 
 
 @celery_app.task(
@@ -110,12 +112,15 @@ def task_build_attack_context(self, results: list[dict], session_id: str):
                     attack_ctx.zap_result = item.result
         with open(f"{Path.cwd()}/app/reports/attack_context_{session_id}.json", "w") as f:
             f.write(attack_ctx.model_dump_json(indent=4))
-    except AssertionError as e:
-        logger.error("An object has an unexpected value!")
-        logger.exception(e)
-        raise
     except Exception as e:
-        logger.error("Something unexpected happened!")
         logger.exception(e)
+        mark_phase_as_errored(
+            report_id=session_id,
+            phase=ScanPhase.ATTACK,
+        )
         raise
+    mark_phase_as(
+        report_id=session_id,
+        phase=ScanPhase.ATTACK,
+    )
     redis_client.set(f"attack:{session_id}", attack_ctx.model_dump_json())

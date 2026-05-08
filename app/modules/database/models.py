@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -5,6 +6,9 @@ from sqlalchemy import String, ForeignKey, JSON, Text, Boolean, UniqueConstraint
 from sqlalchemy.orm import Mapped, relationship, DeclarativeBase
 from sqlalchemy.testing.schema import mapped_column
 from sqlalchemy import BigInteger
+
+from app.modules.interfaces.enums.scan_tracking import ScanPhase, ScanProgress
+
 
 class Base(DeclarativeBase):
     pass
@@ -15,28 +19,34 @@ class Base(DeclarativeBase):
 class Scan(Base):
     __tablename__ = "scan"
 
-    # metadata
+    #Metadata
     id: Mapped[str] = mapped_column(primary_key=True)
-    scan_duration: Mapped[float]
     target_url: Mapped[str]
-    user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    data: Mapped[JSON] = mapped_column(JSON())
-
-    # filterable data
-    scan_date: Mapped[datetime]
     is_automated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     scan_type: Mapped[str] = mapped_column(String(50))
 
+    # filterable data
+    scan_date: Mapped[datetime]
+
     # relationships
-    child:Mapped["Report"] = relationship(
+    report: Mapped["Report"] = relationship(
         back_populates="scan",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
+class ScanResult(Base):
+    __tablename__ = "scan_result"
+
+    # metadata
+    id:Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scan.id"))
+    scan_duration: Mapped[float]
+    user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    data: Mapped[JSON] = mapped_column(JSON())
+
 class Report(Base):
     __tablename__ = "reports"
-    __table_args__ = (UniqueConstraint("scan_id"))
 
     # metadata
     id: Mapped[str] = mapped_column(primary_key=True)
@@ -50,8 +60,8 @@ class Report(Base):
     scan_type: Mapped[str] = mapped_column(String(50))
 
     # relationships
-    parent: Mapped["Scan"] = relationship(
-        back_populates="reports",
+    scan: Mapped["Scan"] = relationship(
+        back_populates="report",
         single_parent=True
     )
 
@@ -72,7 +82,11 @@ class Report(Base):
     medium_confidence_vulns: Mapped[int] = mapped_column(default=0)
     low_confidence_vulns: Mapped[int] = mapped_column(default=0)
 
-    tech = relationship("TechDiscovery", back_populates="parent", cascade="all, delete-orphan", passive_deletes=True)
+    tech:Mapped["TechDiscovery"] = relationship(
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
 class TechDiscovery(Base):
     __tablename__ = "tech_discovery"
@@ -114,9 +128,11 @@ class ScheduledScans(Base):
 class ScanPhaseProgress(Base):
     __tablename__ = "scan_progress"
 
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     scan_id: Mapped[str] = mapped_column(ForeignKey('scan.id'))
-    phase: Mapped[str] = mapped_column(String(50))
+    phase: Mapped[ScanPhase] = mapped_column(String(50))
+    progress: Mapped[ScanProgress] = mapped_column(String(50))
     has_errored: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-class Configuration(Base):
-    raise NotImplementedError
+# class Configuration(Base):
+#     pass

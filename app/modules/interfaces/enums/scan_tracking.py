@@ -14,3 +14,8 @@ class ScanPhase(str, Enum):
     VULN_QUERY = 'VULN_QUERY'
     ATTACK = 'ATTACK'
     NORMALIZATION = 'NORMALIZATION'
+
+class ScanTypes(str, Enum):
+    FULL = 'FULL'
+    QUICK = 'QUICK'
+    CUSTOM = 'CUSTOM'

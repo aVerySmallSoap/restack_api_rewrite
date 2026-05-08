@@ -208,6 +208,7 @@ def parse_nuclei_sarif_results(attack_context: AttackContext) -> list[SARIFResul
 # noinspection D
 @shared_task(bind=True)
 def task_basic_normalization(self, results: dict, session_id: str):
+    # TODO: define failure states
     # Everything here will be derived from Discovery and Attack Context
     raw = redis_client.get(f"attack:{session_id}")
     if raw is None:
@@ -269,7 +270,7 @@ def task_basic_normalization(self, results: dict, session_id: str):
             assert isinstance(nuclei_rule, SARIFRule)
 
             if nuclei_rule.properties["classification"] is None or \
-                nuclei_rule.properties["classification"]["cwe-id"] is None:
+                nuclei_rule.properties["classification"].get("cwe-id", None) is None:
                 nuclei_result.properties["analytics"] = calculate_risk_score(nuclei_result, nuclei_rule, False)
                 union_list.append(nuclei_result)
             else: # classification is not None && classification:cwe-id exists

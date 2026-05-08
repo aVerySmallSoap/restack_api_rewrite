@@ -5,7 +5,7 @@ from loguru import logger
 from docker.models.containers import Container
 
 from app.modules.interfaces.types.context import ScanContext, TechEntry
-from modules.interfaces.scanners import IContainerScanner
+from app.modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.utils.utils import is_file_empty
 

@@ -10,7 +10,6 @@ from fastapi import FastAPI
 from app.modules.interfaces.types.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
-from app.modules.scanners.discovery.search_vulns.search_vulns_query import SearchVulnsQuery
 from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
 
 
