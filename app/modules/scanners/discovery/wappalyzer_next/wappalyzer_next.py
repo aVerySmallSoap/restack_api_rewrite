@@ -5,7 +5,7 @@ from loguru import logger
 from docker.models.containers import Container
 
 from app.modules.interfaces.types.context import ScanContext, TechEntry
-from app.modules.interfaces.enums.scanners import IContainerScanner
+from modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.utils.utils import is_file_empty
 
@@ -82,7 +82,7 @@ class WappalyzerNext(IContainerScanner):
             self.cleanup(session_id)
 
     def parse_results(self, session_id: str) -> dict | None:
-        import json, os
+        import json
         logger.info(f"Parsing wappalyzer-next results for session: {session_id}")
         path = f"{self.report_path}/{session_id}.json"
         headless_path = f"{self.report_path}/headless_{session_id}.json"

@@ -3,9 +3,8 @@ from pathlib import Path
 
 from docker.models.containers import Container
 from loguru import logger
-from pydantic import AnyUrl
 
-from app.modules.interfaces.enums.scanners import IContainerScanner
+from modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.interfaces.types.context import ScanContext
 from app.modules.scanners.web.nuclei.nuclei_context import NucleiContext, NucleiRecord, NucleiInfo

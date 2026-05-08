@@ -5,7 +5,7 @@ from loguru import logger
 
 from app.modules.scanners.web.wapiti.wapiti_config_builder import WapitiConfigBuilder, WapitiConfig
 from app.modules.interfaces.types.context import ScanContext, redis_client
-from app.modules.interfaces.enums.scanners import ICliScanner
+from modules.interfaces.scanners import ICliScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 
@@ -128,13 +128,13 @@ class WapitiScanner(ICliScanner):
         pass
 
     def build_command(self, session_id: str, ctx: ScanContext) -> list[str]:
-        # localtest = ["http://10.89.4.3"] # test line
-        # wapiti_url = ctx.primary_url # test line
-        # if wapiti_url in localtest: # test line
-        #     wapiti_url = "http://localhost:4280" #test line
+        localtest = ["http://10.88.0.38"] # test line
+        wapiti_url = ctx.primary_url # test line
+        if wapiti_url in localtest: # test line
+            wapiti_url = "http://localhost:3000" #test line
         return (
             self._builder
-            .url(ctx.primary_url)
+            .url(wapiti_url)
             .output(f"{self.report_path}/{session_id}.json")
             .build()
         )

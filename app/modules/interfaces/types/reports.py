@@ -38,3 +38,4 @@ class Vulnerability(BaseModel):
     links: Optional[str | dict] = None
     sources: Optional[list[str]] = None
     location: Optional[str] = None
+    fingerprint: Optional[str] = None

@@ -7,7 +7,7 @@ from sslyze import ServerScanRequest, ServerNetworkLocation, ScanCommand, Scanne
     ServerScanResultAsJson
 
 from app.modules.interfaces.types.context import ScanContext
-from app.modules.interfaces.enums.scanners import IBaseScanner
+from modules.interfaces.scanners import IBaseScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 
 
