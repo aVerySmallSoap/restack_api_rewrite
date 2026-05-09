@@ -5,7 +5,7 @@ from pathlib import Path
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.interfaces.types.context import ScanContext, TechEntry
+from app.modules.interfaces.types.context import ScanContext, TechnologyEntry
 from app.modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.utils.utils import is_file_empty
@@ -77,7 +77,7 @@ class WhatWeb(IContainerScanner):
 
     def parse_results(self, session_id: str) -> dict | None:
         logger.info(f"Parsing WhatWeb results for session: {session_id}")
-        _tech: list[TechEntry] = []
+        _tech: list[TechnologyEntry] = []
         _cookies, _extra= [], []
         report_path = f"{self.report_path}/{session_id}.json"
 
@@ -104,7 +104,7 @@ class WhatWeb(IContainerScanner):
                     if _version is not None:
                         if len(_version) > 1:
                             for _ in _version:
-                                _tech.append(TechEntry(
+                                _tech.append(TechnologyEntry(
                                     name=plugin,
                                     version=_,
                                     source="whatweb",
@@ -112,7 +112,7 @@ class WhatWeb(IContainerScanner):
                                 ))
                         elif len(content["version"]) == 1:
                             _tech.append(
-                                TechEntry(
+                                TechnologyEntry(
                                     name=plugin,
                                     version=_version[0],
                                     source="whatweb",
@@ -121,7 +121,7 @@ class WhatWeb(IContainerScanner):
                             )
                     else:
                         _tech.append(
-                            TechEntry(
+                            TechnologyEntry(
                                 name=plugin,
                                 version=None,
                                 source="whatweb",
@@ -192,7 +192,7 @@ class WhatWeb(IContainerScanner):
                 elif item[index] != len(item) - 1:
                     _plugin += item[index]
             technologies.append(
-                TechEntry(
+                TechnologyEntry(
                     name=_plugin,
                     version=_version if _version != "" else None,
                     source="whatweb",

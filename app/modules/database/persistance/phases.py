@@ -3,7 +3,7 @@ Helpers for changing and polling scanning state, as well as, saving different ph
 """
 from app.modules.interfaces.enums.scan_tracking import ScanPhase, ScanProgress
 from app.modules.database.database import transaction
-from app.modules.database.models import ScanPhaseProgress
+from app.modules.database.models.models import ScanPhaseProgress
 
 
 def mark_phase_as(

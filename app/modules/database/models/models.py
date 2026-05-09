@@ -8,13 +8,8 @@ from sqlalchemy.testing.schema import mapped_column
 from sqlalchemy import BigInteger
 
 from app.modules.interfaces.enums.scan_tracking import ScanPhase, ScanProgress
+from app.modules.database.models.base import Base
 
-
-class Base(DeclarativeBase):
-    pass
-
-# Scan -> Report ( may contain: TechDiscovery and Vulnerabilities )
-# Report must rely on Scan ( source of truth ) and not the other way around
 
 class Scan(Base):
     __tablename__ = "scan"
@@ -31,6 +26,11 @@ class Scan(Base):
     # relationships
     report: Mapped["Report"] = relationship(
         back_populates="scan",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    discovery_context: Mapped["DiscoveryContextModel"] = relationship(
+        back_populates="parent",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
@@ -87,33 +87,6 @@ class Report(Base):
         cascade="all, delete-orphan",
         passive_deletes=True
     )
-
-class TechDiscovery(Base):
-    __tablename__ = "tech_discovery"
-
-    id: Mapped[str] = mapped_column(primary_key=True)
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"))
-    scan_date: Mapped[datetime] = mapped_column(String(50))
-    data: Mapped[JSON] = mapped_column(JSON())
-    parent = relationship("Report", back_populates="tech")
-
-class Vulnerability(Base):
-    __tablename__ = "vulnerabilities"
-
-    id: Mapped[str] = mapped_column(primary_key=True)
-    report_id: Mapped[str] = mapped_column(ForeignKey('reports.id'))
-    scan_date: Mapped[datetime]
-    scanner: Mapped[str] = mapped_column(String(50))
-    vulnerability_type: Mapped[str] = mapped_column(String(100))
-    severity: Mapped[str] = mapped_column(String(50))
-    confidence: Mapped[str] = mapped_column(String(25))
-    http_request: Mapped[Optional[JSON]] = mapped_column(JSON(), nullable=True)
-    description: Mapped[str]
-    endpoint: Mapped[str]
-    remediation_effort: Mapped[str]
-    method: Mapped[str]
-    state: Mapped[str]
-    data: Mapped[JSON] = mapped_column(JSON())
 
 class ScheduledScans(Base):
     __tablename__ = "scheduled_scans"

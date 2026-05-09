@@ -16,8 +16,6 @@ from app.modules.tasks.web.attack import (
 from app.modules.tasks.normalization.normalization import task_basic_normalization
 from app.modules.database.persistance.scans import create_scan
 from app.modules.interfaces.enums.scan_tracking import ScanTypes
-from app.modules.database.persistance.phases import mark_phase_as
-from app.modules.interfaces.enums.scan_tracking import ScanPhase
 
 
 def launch_pipeline(session_id: str, ctx: ScanContext):
@@ -25,7 +23,7 @@ def launch_pipeline(session_id: str, ctx: ScanContext):
     logger.info(f"Starting a new scan with session: {session_id}")
     discovery_context = DiscoveryContext()
     redis_client.set(f"discovery:{session_id}", discovery_context.model_dump_json())
-    ctx_json = ctx.to_json()
+    ctx_json = ctx.model_dump_json()
     discovery_json = discovery_context.model_dump_json()
 
     # Create a scan record on the database

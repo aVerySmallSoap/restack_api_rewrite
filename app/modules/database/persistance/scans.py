@@ -3,7 +3,7 @@ Helpers for CRUD operations regarding scans.
 """
 from datetime import datetime
 from app.modules.database.database import transaction
-from app.modules.database.models import Scan
+from app.modules.database.models.models import Scan
 from app.modules.interfaces.enums.scan_tracking import ScanTypes
 
 

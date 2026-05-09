@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
 
-from app.modules.database.models import Base
+from app.modules.database.models.models import Base
 
 load_dotenv()
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from loguru import logger
 from docker.models.containers import Container
 
-from app.modules.interfaces.types.context import ScanContext, TechEntry
+from app.modules.interfaces.types.context import ScanContext, TechnologyEntry
 from app.modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.utils.utils import is_file_empty
@@ -87,7 +87,7 @@ class WappalyzerNext(IContainerScanner):
         path = f"{self.report_path}/{session_id}.json"
         headless_path = f"{self.report_path}/headless_{session_id}.json"
         paths = [path, headless_path]
-        collection: list[TechEntry] = []
+        collection: list[TechnologyEntry] = []
 
         try:
             for index in range(len(paths)):
@@ -102,7 +102,7 @@ class WappalyzerNext(IContainerScanner):
                             assert isinstance(record, dict)
                             for plugin, content in record.items():
                                 collection.append(
-                                    TechEntry(
+                                    TechnologyEntry(
                                         name=plugin,
                                         version=content["version"] if content["version"] != "" else None,
                                         source="wappalyzer-next",

@@ -5,7 +5,7 @@ from pathlib import Path
 from docker.models.containers import Container
 from loguru import logger
 
-from app.modules.interfaces.types.context import TechEntry, ScanContext
+from app.modules.interfaces.types.context import TechnologyEntry, ScanContext
 from app.modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.utils.utils import is_file_empty
@@ -68,7 +68,7 @@ class HttpxScanner(IContainerScanner):
     #noinspection D
     def parse_results(self, session_id: str) -> dict | None:
         logger.info(f"Parsing HTTPX results for session: {session_id}")
-        technologies_list: list[TechEntry] = []
+        technologies_list: list[TechnologyEntry] = []
         report_path = f"{self.report_path}/{session_id}.json"
 
         try:
@@ -87,13 +87,13 @@ class HttpxScanner(IContainerScanner):
                             # each entry is a string with a structure of name:version
                             arr = tech.split(":") if tech.__contains__(":") else [tech]
                             if len(arr) == 1:
-                                technologies_list.append(TechEntry(
+                                technologies_list.append(TechnologyEntry(
                                     name=arr[0],
                                     version="",
                                     source="httpx"
                                 ))
                                 continue
-                            technologies_list.append(TechEntry(
+                            technologies_list.append(TechnologyEntry(
                                 name=arr[0],
                                 version=arr[1],
                                 source="httpx"

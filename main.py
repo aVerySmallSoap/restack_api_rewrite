@@ -32,16 +32,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/", summary="Testing enpoint for individual scanners")
-async def root():
-    session_id: str = str(uuid.uuid4())
-    target = "http://127.0.0.1:4280"
-    # target = "https://his.dnsc.edu.ph"
-    ctx: ScanContext = ScanContext(session_id=session_id, primary_url=target, primary_host=urlparse(target).netloc, config=None)
-    wapiti_scanner = WapitiScanner()
-    wapiti_scanner.start_scan(session_id, ctx)
-    return {"session_id": session_id}
-
 @app.get("/scan")
 async def scan(url: str):
     session_id = str(uuid.uuid4())

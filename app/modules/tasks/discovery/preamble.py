@@ -10,7 +10,7 @@ from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.database.persistance.phases import mark_phase_as
 from app.modules.interfaces.enums.scan_tracking import ScanPhase
-from modules.database.persistance.phases import mark_phase_as_errored
+from app.modules.database.persistance.phases import mark_phase_as_errored
 
 
 @celery_app.task(

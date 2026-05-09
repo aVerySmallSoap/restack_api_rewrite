@@ -1,6 +1,6 @@
 from typing import TextIO
 
-from app.modules.interfaces.types.context import TechEntry
+from app.modules.interfaces.types.context import TechnologyEntry
 
 
 def read_required_images() -> list[str]:
@@ -197,14 +197,14 @@ def set_to_str(items: set, separator: str = ",") -> str:
         _returnable += str(item) + ","
     return _returnable
 
-def tech_to_cpe(tech: list[TechEntry]) -> list[str]:
+def tech_to_cpe(tech: list[TechnologyEntry]) -> list[str]:
     """
     Converts a list of technologies into its cpe variant. This function follows CPE v2.3
     """
     # format: cpe:2.3:vendor:name:version:*:*:*:*:*:*:*
     cpe_list: list[str] = []
     for entry in tech:
-        assert isinstance(entry, TechEntry)
+        assert isinstance(entry, TechnologyEntry)
         name = str(entry.name).lower().replace(" ", "_")
         version = "*"
         if entry.version != "":
@@ -214,14 +214,14 @@ def tech_to_cpe(tech: list[TechEntry]) -> list[str]:
         cpe_list.append(f"cpe:2.3:*:{name}:{version}:*:*:*:*:*:*:*")
     return cpe_list
 
-def resolve_tech_to_tech_entry(tech: list[str | dict]) -> list[TechEntry]:
+def resolve_tech_to_tech_entry(tech: list[str | dict]) -> list[TechnologyEntry]:
     """
     Converts a list of JSON stringified technologies into a list of TechEntry
     :param tech:
     :return:
     """
     assert tech is not None
-    return [TechEntry.model_validate(entry) for entry in tech]
+    return [TechnologyEntry.model_validate(entry) for entry in tech]
 
 def compile_cpe_to_string(cpe_list: list[str]) -> str:
     """
@@ -237,7 +237,7 @@ def compile_cpe_to_string(cpe_list: list[str]) -> str:
         string += cpe_list[index] + " "
     return string
 
-def compile_tech_entry_to_string(arr: list[TechEntry]) -> list[str]:
+def compile_tech_entry_to_string(arr: list[TechnologyEntry]) -> list[str]:
     """
     Compiles a list of TechEntry into a list of stringified TechEntry.
     :param arr:
@@ -257,7 +257,7 @@ def compile_tech_entry_to_string(arr: list[TechEntry]) -> list[str]:
         temp.append(str(name) + " " + str(version))
     return temp
 
-def compile_and_parse_to_search_vuln_queriable(arr: list[TechEntry], command_list: list[str]) -> list[str]:
+def compile_and_parse_to_search_vuln_queriable(arr: list[TechnologyEntry], command_list: list[str]) -> list[str]:
     """
     Compile an array of TechEntry into its stringified form, then append it to a passed command list
     :param arr: the array of TechEntry
