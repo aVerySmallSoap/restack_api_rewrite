@@ -6,6 +6,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
 
 from app.modules.database.models.models import Base
+import app.modules.database.models.models
+import app.modules.database.models.context
+import app.modules.database.models.findings
 
 load_dotenv()
 

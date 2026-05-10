@@ -1,14 +1,17 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import String, ForeignKey, JSON, Text, Boolean, UniqueConstraint
-from sqlalchemy.orm import Mapped, relationship, DeclarativeBase
+from sqlalchemy import String, ForeignKey, JSON, Text, Boolean, DateTime, Integer
+from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.testing.schema import mapped_column
 from sqlalchemy import BigInteger
 
-from app.modules.interfaces.enums.scan_tracking import ScanPhase, ScanProgress
 from app.modules.database.models.base import Base
+from app.modules.interfaces.enums.scan_tracking import ScanPhase, ScanProgress
+
+if TYPE_CHECKING:
+    from app.modules.database.models.context import DiscoveryContextModel
 
 
 class Scan(Base):
@@ -82,12 +85,6 @@ class Report(Base):
     medium_confidence_vulns: Mapped[int] = mapped_column(default=0)
     low_confidence_vulns: Mapped[int] = mapped_column(default=0)
 
-    tech:Mapped["TechDiscovery"] = relationship(
-        back_populates="parent",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )
-
 class ScheduledScans(Base):
     __tablename__ = "scheduled_scans"
 
@@ -109,3 +106,11 @@ class ScanPhaseProgress(Base):
 
 # class Configuration(Base):
 #     pass
+
+class UpdateMetadataModel(Base):
+    __tablename__ = "update_metadata"
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    tool_name: Mapped[str] = mapped_column(String(75))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    update_policy_days: Mapped[int] = mapped_column(Integer)

@@ -11,6 +11,7 @@ from app.modules.interfaces.types.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
 from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
+from app.modules.tasks.pipeline import is_target_responsive
 
 
 @asynccontextmanager
@@ -43,5 +44,7 @@ async def scan(url: str):
         primary_host= primary_host,
         config=None
     )
+    if not is_target_responsive(session_id, ctx):
+        return {"status": "failed"} # Fail
     launch_pipeline(session_id, ctx)
-    return {"session_id": session_id}  # client polls this ID for status
+    return {"session_id": session_id, "status": "success"}  # client polls this ID for status

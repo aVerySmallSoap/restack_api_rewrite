@@ -1,10 +1,15 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, JSON, String, Integer
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modules.database.models.base import Base
+
+if TYPE_CHECKING:
+    from app.modules.database.models.models import Scan
+    from app.modules.database.models.findings import TechnologiesModel
 
 
 class DiscoveryContextModel(Base):
@@ -28,8 +33,7 @@ class DiscoveryContextModel(Base):
         back_populates="discovery_context",
         single_parent=True,
     )
-    technologies: Mapped[list[str]] = relationship(
-        "TechnologiesModel",
+    technologies: Mapped[list["TechnologiesModel"]] = relationship(
         back_populates="parent",
         cascade="all, delete-orphan",
         passive_deletes=True

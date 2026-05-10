@@ -1,13 +1,14 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, JSON, String, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modules.database.models.base import Base
-from app.modules.database.models.context import DiscoveryContextModel
 
+if TYPE_CHECKING:
+    from app.modules.database.models.context import DiscoveryContextModel
 
 class TechnologiesModel(Base):
     __tablename__ = "technologies"
@@ -23,7 +24,7 @@ class TechnologiesModel(Base):
     categories: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     blob: Mapped[JSON] = mapped_column(JSON())
 
-    parent: Mapped["DiscoveryContextModel"] = relationship(
+    parent: Mapped["DiscoveryContextModel"]= relationship(
         back_populates="technologies",
         single_parent=True,
     )

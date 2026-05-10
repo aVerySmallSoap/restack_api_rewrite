@@ -1,3 +1,4 @@
+import time
 from typing import TextIO
 
 from app.modules.interfaces.types.context import TechnologyEntry
@@ -20,9 +21,10 @@ def read_required_images() -> list[str]:
         raise FileNotFoundError
     return collection
 
-def is_file_empty(path: str) -> bool:
+def is_file_empty(file_path: str) -> bool:
     import os
-    if os.path.getsize(path) == 0:
+    from loguru import logger
+    if os.path.getsize(file_path) == 0:
         return True
     return False
 

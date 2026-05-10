@@ -18,7 +18,7 @@ from app.modules.interfaces.enums.scan_tracking import ScanPhase
     soft_time_limit=240,
     time_limit=300,
 )
-def task_httpx(self, preamble_ctx: dict, session_id: str, ctx: str) -> dict:
+def task_httpx(self, preamble_context: str, session_id: str, ctx: str) -> dict:
     try:
         scan_context = ScanContext(**json.loads(ctx))
         return {"type": "httpx", "result": HttpxScanner().start_scan(session_id, scan_context)}

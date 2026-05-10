@@ -1,4 +1,5 @@
 from datetime import datetime
+from loguru import logger
 
 from celery import chain, chord, group
 
@@ -16,7 +17,32 @@ from app.modules.tasks.web.attack import (
 from app.modules.tasks.normalization.normalization import task_basic_normalization
 from app.modules.database.persistance.scans import create_scan
 from app.modules.interfaces.enums.scan_tracking import ScanTypes
+from app.modules.interfaces.types.options import ScannerTaskResult
 
+
+def is_target_responsive(session_id: str, ctx: ScanContext) -> bool:
+    task = task_httpx.apply_async((None, session_id, ctx.model_dump_json()))
+    result = task.get()
+    if result:
+        logger.debug("We received a response from httpx")
+        scanner_result = ScannerTaskResult.model_validate(result["result"])
+        if scanner_result.result is None:
+            logger.warning("HTTPX returned nothing while checking! Is this a bug?")
+            logger.warning(scanner_result.result)
+            return False
+        httpx_result_failed = scanner_result.result.get("failed", None)
+        if httpx_result_failed is None:
+            logger.warning("HTTPX returned nothing while checking! Is this a bug?")
+            logger.exception(httpx_result_failed)
+            return False
+        if httpx_result_failed:
+            logger.error("Target host is not reachable!")
+            return False
+        else:
+            logger.success("Target host is reachable!")
+            return True
+    logger.error("Target host is not reachable!")
+    return False
 
 def launch_pipeline(session_id: str, ctx: ScanContext):
     from loguru import logger
@@ -25,6 +51,8 @@ def launch_pipeline(session_id: str, ctx: ScanContext):
     redis_client.set(f"discovery:{session_id}", discovery_context.model_dump_json())
     ctx_json = ctx.model_dump_json()
     discovery_json = discovery_context.model_dump_json()
+
+    # Need to inject httpx results since we run an HTTPX scan first
 
     # Create a scan record on the database
     scan_record = create_scan(

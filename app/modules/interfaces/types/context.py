@@ -1,5 +1,6 @@
-import json
-from dataclasses import dataclass
+import uuid
+from datetime import datetime
+
 from pydantic import BaseModel
 from typing import Optional
 
@@ -12,6 +13,16 @@ class TechnologyEntry(BaseModel):
     source: str
     version: Optional[str | list[str]] = None
     categories: Optional[list[str]] = None
+
+class UpdateMetaData(BaseModel):
+    """
+    Contains the metadata about tooling updates.
+    This should determine whether to update the tool or not.
+    """
+    id: uuid.UUID
+    tool_name: str
+    updated_at: datetime
+    update_policy_days: int
 
 class TLSFinding(BaseModel):
     host: str

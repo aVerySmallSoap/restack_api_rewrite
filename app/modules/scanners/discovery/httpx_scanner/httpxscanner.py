@@ -9,6 +9,7 @@ from app.modules.interfaces.types.context import TechnologyEntry, ScanContext
 from app.modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.utils.utils import is_file_empty
+from app.modules.interfaces.errors.scanners import HTTPXFailed
 
 
 class HttpxScanner(IContainerScanner):
@@ -21,7 +22,7 @@ class HttpxScanner(IContainerScanner):
         started = time.monotonic()
         try:
             container = self.spawn_container(session_id, ctx)
-            result = container.wait()
+            result = container.wait(condition="next-exit")
             exit_code = result.get('StatusCode')
             logs = container.logs(stdout=True, stderr=True).decode(errors="replace")
             if exit_code != 0:
@@ -46,6 +47,16 @@ class HttpxScanner(IContainerScanner):
                 result=parsed,
                 stdout=logs,
                 exit_code=exit_code,
+                runtime_ms=(time.monotonic() - started) * 1_000,
+            ).model_dump()
+        except HTTPXFailed as e:
+            logger.error(f"HTTPX failed with error: {e}")
+            return ScannerTaskResult(
+                scanner="httpx",
+                phase="liveliness",
+                status="failed",
+                result=None,
+                error=str(e),
                 runtime_ms=(time.monotonic() - started) * 1_000,
             ).model_dump()
         except Exception as e:
@@ -78,7 +89,7 @@ class HttpxScanner(IContainerScanner):
                 for line in f.read().splitlines():
                     json_line: dict = json.loads(line) # I do not know yet if this will change into an array if multiple urls are fed
                     if json_line.get("failed"):
-                        raise RuntimeWarning("httpx failed")
+                        raise HTTPXFailed("HTTPX failed to reach the server address")
                     technologies = json_line.get("tech")
                     if not json_line:
                         continue # may be a break or return when empty. Need to test
@@ -101,6 +112,7 @@ class HttpxScanner(IContainerScanner):
             cpe = json_line.get("cpe")
             if cpe is None:
                 return {
+                    "failed": False,
                     "technologies": technologies_list,
                     "cpe": None,
                     "tls": json_line.get("tls"),
@@ -108,6 +120,7 @@ class HttpxScanner(IContainerScanner):
             else:
                 assert isinstance(cpe, list)
                 return {
+                    "failed": False,
                     "technologies": technologies_list,
                     "cpe": [entry["cpe"] for entry in cpe],
                     "tls": json_line.get("tls"),
@@ -115,14 +128,11 @@ class HttpxScanner(IContainerScanner):
         except RuntimeWarning:
             logger.warning("HTTPX report file empty! Was there any scanner errors?")
             return None
-        except AssertionError:
-            logger.exception("HTTPX parsing has encountered an unexpected type!")
-            raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:
         from docker import errors as docker_errors, from_env as docker_from_env
         logger.info("Cleaning up HTTPX artifacts")
-        # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
+        Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker_from_env()
         try:
             container = client.containers.get(f"{self.scanner_name}_{session_id}")
