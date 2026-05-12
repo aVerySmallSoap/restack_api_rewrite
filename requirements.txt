@@ -11,6 +11,7 @@ SQLAlchemy-Utils == 0.42.1
 psycopg2-binary == 2.9.12
 psycopg==3.3.4
 psycopg-binary
+google-genai
 
 # requirements specific dependencies
 mitmproxy==12.2.1

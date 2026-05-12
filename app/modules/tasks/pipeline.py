@@ -5,7 +5,7 @@ from celery import chain, chord, group
 
 from app.modules.tasks import (
     task_katana, task_naabu, task_subfinder, task_build_preamble_context,
-    task_httpx, task_build_liveliness_context,
+    task_httpx, task_live_check, task_build_liveliness_context,
     task_sslyze, task_whatweb, task_wappalyzer, task_build_asset_context
 )
 from app.modules.interfaces.types.context import ScanContext, redis_client
@@ -18,10 +18,11 @@ from app.modules.tasks.normalization.normalization import task_basic_normalizati
 from app.modules.database.persistance.scans import create_scan
 from app.modules.interfaces.enums.scan_tracking import ScanTypes
 from app.modules.interfaces.types.options import ScannerTaskResult
+from app.modules.tasks.analytics.report_analytics import task_generate_report_analytics
 
 
 def is_target_responsive(session_id: str, ctx: ScanContext) -> bool:
-    task = task_httpx.apply_async((None, session_id, ctx.model_dump_json()))
+    task = task_live_check.apply_async((session_id, ctx.model_dump_json()))
     result = task.get()
     if result:
         logger.debug("We received a response from httpx")
@@ -108,5 +109,6 @@ def launch_pipeline(session_id: str, ctx: ScanContext):
         task_search_vuln_query.s(session_id, ctx_json),
         attack_phase,
         task_basic_normalization.s(session_id),
+        task_generate_report_analytics.s(session_id),
     )
     full_pipeline.apply_async()

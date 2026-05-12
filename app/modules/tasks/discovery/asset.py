@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from billiard import TimeLimitExceeded
 from loguru import logger
@@ -13,6 +14,8 @@ from app.modules.utils.utils import tech_to_cpe, resolve_tech_to_tech_entry
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.database.persistance.phases import mark_phase_as_errored, mark_phase_as
 from app.modules.interfaces.enums.scan_tracking import ScanPhase
+from app.modules.database.models.context import DiscoveryContextModel
+from app.modules.database.database import transaction
 
 
 @celery_app.task(
@@ -75,6 +78,7 @@ def task_wappalyzer(self, liveliness_ctx: str, session_id: str, ctx_json: str) -
             runtime_ms=300
         ).model_dump()
 
+#noinspection D
 @celery_app.task(
     bind=True,
     soft_time_limit=240,
@@ -95,12 +99,17 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
             if item.status != "success":
                 logger.warning(f"{item.scanner} skipped. Errors: {item.error}")
                 continue
-            assert discovery_ctx.cpes is not None
-            assert discovery_ctx.technologies is not None
+            if discovery_ctx.cpes is None:
+                discovery_ctx.cpes = []
+            if discovery_ctx.technologies is None:
+                discovery_ctx.technologies = []
 
             match item.scanner:
                 case "sslyze":
-                    pass
+                    if item.result is None:
+                        logger.warning("SSLyze returned without results")
+                        continue
+                    discovery_ctx.ssl_certs = item.result
                 case "whatweb":
                     if item.result is None:
                         logger.warning("WhatWeb returned without results")
@@ -113,6 +122,20 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
                         continue
                     discovery_ctx.technologies.extend(resolve_tech_to_tech_entry(item.result["technologies"]))
                     discovery_ctx.cpes.extend(tech_to_cpe(resolve_tech_to_tech_entry(item.result["technologies"])))
+
+        with transaction() as db:
+            # insert database entry for discovery context here since this is where we consider it "complete"
+            db.add(DiscoveryContextModel(
+                scan_id=uuid.UUID(session_id, version=4),
+                site_map=discovery_ctx.site_map,
+                endpoints=discovery_ctx.endpoints,
+                out_of_scope=discovery_ctx.out_of_scope,
+                ports=discovery_ctx.ports,
+                domains=discovery_ctx.domains,
+                cpes=discovery_ctx.cpes,
+                queried_vulnerabilities=discovery_ctx.queried_vulnerabilities,
+                ssl_certs=discovery_ctx.ssl_certs
+            ))
     except Exception as e:
         logger.exception(e)
         mark_phase_as_errored(

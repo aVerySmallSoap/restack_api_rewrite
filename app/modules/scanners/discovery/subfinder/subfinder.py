@@ -102,7 +102,7 @@ class Subfinder(IContainerScanner):
     def cleanup(self, session_id: str) -> None:
         from docker import errors as docker_errors, from_env as docker_from_env
         logger.info("Cleaning up Subfinder artifacts")
-        # Path(f"{self._base_report_path}/{session_id}.json").unlink(missing_ok=True)
+        Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker_from_env()
         try:
             container = client.containers.get(f"{self.scanner_name}_{session_id}")

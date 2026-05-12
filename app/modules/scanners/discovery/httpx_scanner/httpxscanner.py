@@ -22,7 +22,7 @@ class HttpxScanner(IContainerScanner):
         started = time.monotonic()
         try:
             container = self.spawn_container(session_id, ctx)
-            result = container.wait(condition="next-exit")
+            result = container.wait()
             exit_code = result.get('StatusCode')
             logs = container.logs(stdout=True, stderr=True).decode(errors="replace")
             if exit_code != 0:
@@ -134,6 +134,7 @@ class HttpxScanner(IContainerScanner):
         logger.info("Cleaning up HTTPX artifacts")
         Path(f"{self.report_path}/{session_id}.json").unlink(missing_ok=True)
         client = docker_from_env()
+        logger.info(client)
         try:
             container = client.containers.get(f"{self.scanner_name}_{session_id}")
             container.stop(timeout=5)
@@ -145,6 +146,7 @@ class HttpxScanner(IContainerScanner):
         import docker
         logger.info(f"Spawning container: {self.scanner_name}_{session_id}")
         client = docker.from_env()
+        logger.info(client)
         return client.containers.run(
             image="projectdiscovery/httpx",
             name=f"{self.scanner_name}_{session_id}",

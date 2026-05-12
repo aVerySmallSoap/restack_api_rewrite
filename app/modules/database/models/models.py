@@ -29,7 +29,7 @@ class Scan(Base):
     scan_date: Mapped[datetime]
 
     # relationships
-    report: Mapped["Report"] = relationship(
+    report: Mapped["ScanReportModel"] = relationship(
         back_populates="scan",
         cascade="all, delete-orphan",
         passive_deletes=True
@@ -60,7 +60,7 @@ class ScanResult(Base):
     user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     data: Mapped[JSON] = mapped_column(JSON())
 
-class Report(Base):
+class ScanReportModel(Base):
     __tablename__ = "reports"
 
     # metadata

@@ -3,6 +3,7 @@ import uuid
 from uuid import uuid4
 
 from billiard import TimeLimitExceeded
+from billiard.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
 from app.services.celery_app import celery_app
@@ -20,8 +21,8 @@ from app.modules.database.models.findings import TechnologiesModel
 
 @celery_app.task(
     bind=True,
-    soft_time_limit=240,
-    time_limit=300,
+    soft_time_limit=360,
+    time_limit=560,
 )
 def task_httpx(self, preamble_context: str, session_id: str, ctx: str) -> dict:
     try:
@@ -34,15 +35,51 @@ def task_httpx(self, preamble_context: str, session_id: str, ctx: str) -> dict:
             status="timeout",
             result=None,
             error="Celery time limit exceeded",
-            runtime_ms=300
+            runtime_ms=360
+        ).model_dump()
+    except SoftTimeLimitExceeded:
+        return ScannerTaskResult(
+            scanner="httpx",
+            phase="preamble",
+            status="timeout",
+            result=None,
+            error="Celery time limit exceeded",
+            runtime_ms=360
         ).model_dump()
 
+@celery_app.task(
+    bind=True,
+    soft_time_limit=360,
+    time_limit=560,
+)
+def task_live_check(self, session_id: str, ctx: str) -> dict:
+    try:
+        scan_context = ScanContext(**json.loads(ctx))
+        return {"type": "httpx", "result": HttpxScanner().start_scan(session_id, scan_context)}
+    except TimeLimitExceeded:
+        return ScannerTaskResult(
+            scanner="httpx",
+            phase="preamble",
+            status="timeout",
+            result=None,
+            error="Celery time limit exceeded",
+            runtime_ms=360
+        ).model_dump()
+    except SoftTimeLimitExceeded:
+        return ScannerTaskResult(
+            scanner="httpx",
+            phase="preamble",
+            status="timeout",
+            result=None,
+            error="Celery time limit exceeded",
+            runtime_ms=360
+        ).model_dump()
 
 # noinspection D
 @celery_app.task(
     bind=True,
-    soft_time_limit=240,
-    time_limit=300,
+    soft_time_limit=360,
+    time_limit=560,
     )
 def task_build_liveliness_context(self, results: list[dict], session_id: str):
     # Create the preamble context

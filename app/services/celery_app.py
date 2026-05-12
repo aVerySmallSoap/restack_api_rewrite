@@ -23,4 +23,5 @@ celery_app.autodiscover_tasks([
     "app.modules.tasks.web.attack",
     "app.modules.tasks.discovery.query",
     "app.modules.tasks.normalization.normalization",
+    "app.modules.tasks.analytics.report_analytics"
 ])

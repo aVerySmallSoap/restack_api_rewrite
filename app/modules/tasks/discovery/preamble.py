@@ -55,8 +55,8 @@ def task_naabu(self, session_id:str, ctx_json: str) -> dict:
 # Find any related domains
 @celery_app.task(
     bind=True,
-    soft_time_limit=240,
-    time_limit=300,
+    soft_time_limit=360,
+    time_limit=360,
 )
 def task_subfinder(self, session_id: str, ctx_json: str) -> dict:
     try:
@@ -74,8 +74,8 @@ def task_subfinder(self, session_id: str, ctx_json: str) -> dict:
 
 @celery_app.task(
     bind=True,
-    soft_time_limit=240,
-    time_limit=300,
+    soft_time_limit=360,
+    time_limit=360,
 )
 def task_build_preamble_context(self, results: list[dict], discovery_context: str, session_id: str):
     discovery_ctx = DiscoveryContext(**json.loads(discovery_context))

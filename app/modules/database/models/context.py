@@ -9,7 +9,6 @@ from app.modules.database.models.base import Base
 
 if TYPE_CHECKING:
     from app.modules.database.models.models import Scan
-    from app.modules.database.models.findings import TechnologiesModel
 
 
 class DiscoveryContextModel(Base):
@@ -27,6 +26,7 @@ class DiscoveryContextModel(Base):
     domains: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     cpes: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     queried_vulnerabilities: Mapped[list[JSON]] = mapped_column(ARRAY(JSON), nullable=True)
+    ssl_certs: Mapped[str] = mapped_column(String, nullable=True)
 
     #relationships
     parent: Mapped["Scan"] = relationship(
