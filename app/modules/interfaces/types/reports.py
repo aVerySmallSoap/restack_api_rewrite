@@ -30,6 +30,7 @@ class SARIF(BaseModel):
 
 # Normalization
 class Vulnerability(BaseModel):
+    # TODO: There is a severe mismatch between this model and VulnerabilityModel
     name: str
     severity: str
     description: str

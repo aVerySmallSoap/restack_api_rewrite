@@ -9,16 +9,18 @@ from sqlalchemy import BigInteger
 
 from app.modules.database.models.base import Base
 from app.modules.interfaces.enums.scan_tracking import ScanPhase, ScanProgress
+from app.modules.database.models.findings import TechnologiesModel
 
 if TYPE_CHECKING:
     from app.modules.database.models.context import DiscoveryContextModel
+    from app.modules.database.models.findings import VulnerabilityModel
 
 
 class Scan(Base):
     __tablename__ = "scan"
 
     #Metadata
-    id: Mapped[str] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     target_url: Mapped[str]
     is_automated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     scan_type: Mapped[str] = mapped_column(String(50))
@@ -33,6 +35,16 @@ class Scan(Base):
         passive_deletes=True
     )
     discovery_context: Mapped["DiscoveryContextModel"] = relationship(
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    vulnerabilities: Mapped[list["VulnerabilityModel"]] = relationship(
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    technologies: Mapped[list["TechnologiesModel"]] = relationship(
         back_populates="parent",
         cascade="all, delete-orphan",
         passive_deletes=True

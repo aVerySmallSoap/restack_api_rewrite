@@ -12,9 +12,10 @@ from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
 from app.modules.scanners.web.zap.zap_scanner import ZapScanner
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.tasks.web.attack_context import AttackContext
-from app.modules.scanners.web.nuclei.nuclei_context import NucleiRecord
 from app.modules.database.persistance.phases import mark_phase_as_errored, mark_phase_as
 from app.modules.interfaces.enums.scan_tracking import ScanPhase
+from app.modules.database.persistance.alerts import insert_nuclei_alerts
+from app.modules.database.persistance.alerts import insert_wapiti_alerts, insert_zap_alerts
 
 
 @celery_app.task(
@@ -100,16 +101,19 @@ def task_build_attack_context(self, results: list[dict], session_id: str):
                         logger.warning("Skipping Nuclei results! Reason: empty result")
                         continue
                     attack_ctx.nuclei_result = item.result
+                    insert_nuclei_alerts(item.result, session_id)
                 case "wapiti":
                     if item.result is None:
                         logger.warning("Skipping Wapiti results! Reason: empty result")
                         continue
                     attack_ctx.wapiti_result = item.result
+                    insert_wapiti_alerts(item.result, session_id)
                 case "zap":
                     if item.result is None:
                         logger.warning("Skipping Wapiti results! Reason: empty result")
                         continue
                     attack_ctx.zap_result = item.result
+                    insert_zap_alerts(item.result, session_id)
         with open(f"{Path.cwd()}/app/reports/attack_context_{session_id}.json", "w") as f:
             f.write(attack_ctx.model_dump_json(indent=4))
     except Exception as e:

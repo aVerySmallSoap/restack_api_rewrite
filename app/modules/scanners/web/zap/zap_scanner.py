@@ -168,6 +168,12 @@ class ZapScanner(IAPIScanner):
         if detailed_har_map.__len__() == 0:
             logger.warning("Detailed HAR alerts returned as an empty result")
 
+        with open(f"{self.report_path}/{session_id}_test_hars.json", "w") as outfile:
+            json.dump({
+                "har": har_alert_map,
+                "detailed_har": detailed_har_map,
+            }, outfile, indent=4)
+
         for complete_alert in returnable_alerts:
             _associated_har = har_alert_map.get(complete_alert["sourceMessageId"])
             _associated_detailed_har = detailed_har_map.get(complete_alert["sourceMessageId"])

@@ -33,8 +33,3 @@ class DiscoveryContextModel(Base):
         back_populates="discovery_context",
         single_parent=True,
     )
-    technologies: Mapped[list["TechnologiesModel"]] = relationship(
-        back_populates="parent",
-        cascade="all, delete-orphan",
-        passive_deletes=True
-    )

@@ -2,7 +2,6 @@ from typing import Optional
 
 from app.modules.interfaces.types.options import BaseContext
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
-from app.modules.scanners.web.nuclei.nuclei_context import NucleiRecord
 
 
 class AttackContext(BaseContext):

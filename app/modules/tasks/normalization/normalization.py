@@ -2,13 +2,12 @@ import json
 from pathlib import Path
 
 from celery import shared_task
-from pydantic import AnyUrl
 
 from app.modules.tasks.web.attack_context import AttackContext
 from app.modules.interfaces.types.reports import SARIFRule, SARIFResult
 from app.modules.interfaces.types.context import redis_client
-from app.modules.scanners.web.nuclei.nuclei_context import NucleiRecord, NucleiClassification, NucleiInfo
-from app.modules.utils.utils import text_io_to_dict_list
+from app.modules.utils.sarif_utils import parse_zap_sarif_rules, parse_wapiti_sarif_rules, \
+    parse_nuclei_sarif_rules, parse_zap_sarif_results, parse_wapiti_sarif_results, parse_nuclei_sarif_results
 
 PROJECT_ROOT = Path.cwd().parent.parent.parent.parent
 
@@ -54,157 +53,6 @@ def calculate_risk_score(vulnerability: SARIFResult, rule: SARIFRule, intersecte
         "confidence": confidence
     }
 
-def parse_zap_sarif_rules(attack_context: AttackContext) -> list[SARIFRule]:
-    if attack_context.zap_result is None:
-        return []
-    zap_results = attack_context.zap_result
-    zap_rules = zap_results["runs"][0]["tool"]["driver"]["rules"]
-    returnable: list[SARIFRule] = []
-
-    assert zap_rules is not None
-    assert isinstance(zap_rules, list)
-    for rule in zap_rules:
-        assert rule is not None
-        assert isinstance(rule, dict)
-        assert rule["help"] is not None
-        assert isinstance(rule["help"], dict)
-        returnable.append(
-            SARIFRule(
-                id=rule["id"],
-                name=rule["name"],
-                short_description_text=rule.get("shortDescription", None),
-                full_description_text=rule["fullDescription"].get("text", None),
-                help_text=rule["help"].get("text", None),
-                help_markdown=rule["help"].get("markdown", None),
-                properties=rule.get("properties", None),
-                level=rule.get("level", "info")
-            )
-        )
-    return returnable
-
-def parse_zap_sarif_results(attack_context: AttackContext) -> list[SARIFResult]:
-    if attack_context.zap_result is None:
-        return []
-    zap_results = attack_context.zap_result
-    zap_scan_results = zap_results["runs"][0]["results"]
-    returnable: list[SARIFResult] = []
-
-    assert zap_scan_results is not None
-    assert isinstance(zap_scan_results, list)
-    for result in zap_scan_results:
-        assert result is not None
-        assert isinstance(result, dict)
-        returnable.append(
-            SARIFResult(
-                rule_id=result["ruleId"],
-                message_text=result["message"]["text"],
-                location=result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
-                properties=result["properties"],
-            )
-        )
-    return returnable
-
-def parse_wapiti_sarif_rules(attack_context: AttackContext) -> list[SARIFRule]:
-    if attack_context.wapiti_result is None:
-        return []
-    wapiti_results = attack_context.wapiti_result
-    wapiti_rules = wapiti_results["runs"][0]["tool"]["driver"]["rules"]
-    returnable: list[SARIFRule] = []
-
-    assert wapiti_rules is not None
-    assert isinstance(wapiti_rules, list)
-    for rule in wapiti_rules:
-        assert rule is not None
-        assert isinstance(rule, dict)
-        assert rule["help"] is not None
-        assert isinstance(rule["help"], dict)
-        returnable.append(
-            SARIFRule(
-                id=rule["id"],
-                name=rule["id"],
-                short_description_text=rule["shortDescription"].get("text", None),
-                full_description_text=rule["fullDescription"].get("text", None),
-                help_text=rule["help"].get("text", None),
-                help_markdown=rule["help"].get("markdown", None),
-                properties=rule.get("properties", None),
-                level=rule.get("level", "low"),
-            )
-        )
-    return returnable
-
-def parse_wapiti_sarif_results(attack_context: AttackContext) -> list[SARIFResult]:
-    if attack_context.wapiti_result is None:
-        return []
-    wapiti_results = attack_context.wapiti_result
-    wapiti_scan_results = wapiti_results["runs"][0]["results"]
-    returnable: list[SARIFResult] = []
-
-    assert wapiti_scan_results is not None
-    assert isinstance(wapiti_scan_results, list)
-    for result in wapiti_scan_results:
-        assert result is not None
-        assert isinstance(result, dict)
-        returnable.append(
-            SARIFResult(
-                rule_id=result["ruleId"],
-                message_text=result["message"]["text"],
-                location=result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
-                properties=result["properties"]
-            )
-        )
-    return returnable
-
-def parse_nuclei_sarif_rules(attack_context: AttackContext) -> list[SARIFRule]:
-    if attack_context.nuclei_result is None:
-        return []
-    nuclei_results = attack_context.nuclei_result
-    nuclei_rules = nuclei_results["runs"][0]["tool"]["driver"]["rules"]
-    returnable: list[SARIFRule] = []
-
-    assert nuclei_rules is not None
-    assert isinstance(nuclei_rules, list)
-    for rule in nuclei_rules:
-        assert rule is not None
-        assert isinstance(rule, dict)
-        assert rule["help"] is not None
-        assert isinstance(rule["help"], dict)
-        returnable.append(
-            SARIFRule(
-                id=rule["id"],
-                name=rule["name"],
-                short_description_text=rule.get("shortDescription", None),
-                full_description_text=rule["fullDescription"].get("text", None),
-                help_text=rule["help"].get("text", None),
-                help_markdown=None,
-                properties=rule.get("properties", None),
-                level=rule.get("level", "info")
-            )
-        )
-    return returnable
-
-def parse_nuclei_sarif_results(attack_context: AttackContext) -> list[SARIFResult]:
-    if attack_context.nuclei_result is None:
-        return []
-    nuclei_results = attack_context.nuclei_result
-    nuclei_scan_results = nuclei_results["runs"][0]["results"]
-    returnable: list[SARIFResult] = []
-
-    assert nuclei_scan_results is not None
-    assert isinstance(nuclei_scan_results, list)
-    for result in nuclei_scan_results:
-        assert result is not None
-        assert isinstance(result, dict)
-        assert result["message"] is not None
-        returnable.append(
-            SARIFResult(
-                rule_id=result["ruleId"],
-                message_text=result["message"]["text"] if result["message"]["text"] is not None else "",
-                location=result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
-                properties=result["properties"],
-            )
-        )
-    return returnable
-
 # noinspection D
 @shared_task(bind=True)
 def task_basic_normalization(self, results: dict, session_id: str):
@@ -217,14 +65,14 @@ def task_basic_normalization(self, results: dict, session_id: str):
     assert isinstance(attack_context, AttackContext)
 
     # rules
-    zap_rule_collection: list[SARIFRule] = parse_zap_sarif_rules(attack_context)
-    wapiti_rule_collection: list[SARIFRule] = parse_wapiti_sarif_rules(attack_context)
-    nuclei_rule_collection: list[SARIFRule] = parse_nuclei_sarif_rules(attack_context)
+    zap_rule_collection: list[SARIFRule] = parse_zap_sarif_rules(attack_context.zap_result)
+    wapiti_rule_collection: list[SARIFRule] = parse_wapiti_sarif_rules(attack_context.wapiti_result)
+    nuclei_rule_collection: list[SARIFRule] = parse_nuclei_sarif_rules(attack_context.nuclei_result)
 
     # results
-    zap_scan_results = parse_zap_sarif_results(attack_context)
-    wapiti_scan_results = parse_wapiti_sarif_results(attack_context)
-    nuclei_scan_results = parse_nuclei_sarif_results(attack_context)
+    zap_scan_results = parse_zap_sarif_results(attack_context.zap_result)
+    wapiti_scan_results = parse_wapiti_sarif_results(attack_context.wapiti_result)
+    nuclei_scan_results = parse_nuclei_sarif_results(attack_context.nuclei_result)
 
     intersection_list: list[SARIFResult] = []
     union_list: list[SARIFResult] = []

@@ -2,20 +2,21 @@ import uuid
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, JSON, String, ARRAY
+from sqlalchemy import ForeignKey, JSON, String, ARRAY, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modules.database.models.base import Base
 
 if TYPE_CHECKING:
     from app.modules.database.models.context import DiscoveryContextModel
+    from app.modules.database.models.models import Scan
 
 class TechnologiesModel(Base):
     __tablename__ = "technologies"
 
     #metadata
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    context_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("discovery_context.id"))
+    scan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('scan.id'))
 
     # data
     name: Mapped[str] = mapped_column(String(150))
@@ -24,7 +25,7 @@ class TechnologiesModel(Base):
     categories: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     blob: Mapped[JSON] = mapped_column(JSON())
 
-    parent: Mapped["DiscoveryContextModel"]= relationship(
+    parent: Mapped["Scan"]= relationship(
         back_populates="technologies",
         single_parent=True,
     )
@@ -32,9 +33,9 @@ class TechnologiesModel(Base):
 class VulnerabilityModel(Base):
     __tablename__ = "vulnerabilities"
 
-    id: Mapped[str] = mapped_column(primary_key=True)
-    report_id: Mapped[str] = mapped_column(ForeignKey('reports.id'))
-    scan_date: Mapped[datetime]
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    scan_id: Mapped[str] = mapped_column(ForeignKey('scan.id'))
+    scan_date: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     scanner: Mapped[str] = mapped_column(String(50))
     vulnerability_type: Mapped[str] = mapped_column(String(100))
     severity: Mapped[str] = mapped_column(String(50))
@@ -43,6 +44,11 @@ class VulnerabilityModel(Base):
     description: Mapped[str]
     endpoint: Mapped[str]
     remediation_effort: Mapped[str]
-    method: Mapped[str]
-    state: Mapped[str]
+    method: Mapped[str] = mapped_column(String, nullable=True)
+    state: Mapped[str] = mapped_column(String, nullable=True)
     data: Mapped[JSON] = mapped_column(JSON())
+
+    parent: Mapped["Scan"] = relationship(
+        back_populates="vulnerabilities",
+        single_parent=True,
+    )

@@ -1,4 +1,6 @@
 import json
+import uuid
+from uuid import uuid4
 
 from billiard import TimeLimitExceeded
 from loguru import logger
@@ -11,6 +13,9 @@ from app.modules.utils.utils import tech_to_cpe, resolve_tech_to_tech_entry
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.database.persistance.phases import mark_phase_as_errored, mark_phase_as
 from app.modules.interfaces.enums.scan_tracking import ScanPhase
+from app.modules.database.database import transaction
+from app.modules.interfaces.types.context import TechnologyEntry
+from app.modules.database.models.findings import TechnologiesModel
 
 
 @celery_app.task(
@@ -68,6 +73,20 @@ def task_build_liveliness_context(self, results: list[dict], session_id: str):
                     technologies = item.result.get("technologies", None)
                     cpes = item.result.get("cpe", None)
                     if technologies:
+                        with transaction() as db:
+                            _appendable = []
+                            for tech in item.result["technologies"]:
+                                tech = TechnologyEntry.model_validate(tech)
+                                _appendable.append(
+                                    TechnologiesModel(
+                                        scan_id=uuid.UUID(session_id, version=4),
+                                        name=tech.name,
+                                        source="httpx",
+                                        version=[tech.version] if isinstance(tech.version, str) else tech.version if tech.version else None,
+                                        blob=tech.model_dump()
+                                    )
+                                )
+                            db.add_all(_appendable)
                         discovery_ctx.technologies = item.result["technologies"]
                     if cpes:
                         cpe_list: list = item.result["cpe"]

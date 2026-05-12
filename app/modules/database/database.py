@@ -1,6 +1,7 @@
 import os
 from contextlib import contextmanager
 from dotenv import load_dotenv
+from loguru import logger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
@@ -12,7 +13,7 @@ import app.modules.database.models.findings
 
 load_dotenv()
 
-DATABASE_URL = f"postgresql+psycopg://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@localhost:5432/{os.getenv('DB')}"
+DATABASE_URL = f"postgresql+psycopg://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@localhost:5433/{os.getenv('DB')}"
 
 
 engine = create_engine(
@@ -20,7 +21,11 @@ engine = create_engine(
     pool_pre_ping=True,
 )
 
-if not database_exists(engine.url): create_database(engine.url)
+if not database_exists(engine.url):
+    logger.info(f"Creating database...")
+    create_database(engine.url)
+
+logger.info(f"Creating tables...")
 Base.metadata.create_all(engine)
 
 SessionLocal = sessionmaker(
@@ -34,7 +39,6 @@ SessionLocal = sessionmaker(
 @contextmanager
 def transaction():
     db = SessionLocal()
-
     try:
         yield db
         db.commit()

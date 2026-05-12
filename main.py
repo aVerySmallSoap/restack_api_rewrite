@@ -10,8 +10,8 @@ from fastapi import FastAPI
 from app.modules.interfaces.types.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_pipeline
-from app.modules.scanners.web.wapiti.wapiti_scanner import WapitiScanner
 from app.modules.tasks.pipeline import is_target_responsive
+import app.modules.database.database # create database
 
 
 @asynccontextmanager

@@ -10,7 +10,7 @@ from app.modules.tasks import (
 )
 from app.modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
-from app.modules.tasks.discovery.minor_tasks import task_search_vuln_query
+from app.modules.tasks.discovery.query import task_search_vuln_query
 from app.modules.tasks.web.attack import (
     task_nuclei, task_wapiti, task_zap, task_build_attack_context
 )

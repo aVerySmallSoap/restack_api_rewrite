@@ -8,11 +8,10 @@ from docker.models.containers import Container
 from loguru import logger
 
 from app.modules.interfaces.types.context import ScanContext
-from app.modules.utils.utils import map_endpoints, is_same_host
 from app.modules.scanners.discovery.katana.katana_context import KatanaContext
 from app.modules.interfaces.scanners import IContainerScanner
 from app.modules.interfaces.types.options import ScannerTaskResult
-from app.modules.utils.utils import is_file_empty
+from app.modules.utils.utils import is_file_empty, is_same_host, map_endpoints
 
 
 class Katana(IContainerScanner):
