@@ -13,4 +13,4 @@ class DiscoveryContext(BaseContext):
     technologies: Optional[list[TechnologyEntry]] = None
     cpes: Optional[list[str]] = None
     queried_vulnerabilities: Optional[list[dict]] = None
-    ssl_certs: Optional[dict] = None
+    ssl_certs: Optional[str] = None

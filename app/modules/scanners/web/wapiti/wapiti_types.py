@@ -51,7 +51,7 @@ class WapitiConfig(BaseModel):
 
     # URL control
     start: Optional[str]                                            = None # URL
-    exclude: Optional[str]                                          = "http://127.0.0.1:4280/logout.php" # URL
+    exclude: Optional[str]                                          = None # URL
     remove: Optional[str]                                           = None # See -r
     skip: Optional[str]                                             = None # See --skip
     max_links_per_page: Optional[int]                               = None

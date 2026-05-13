@@ -1,6 +1,8 @@
 """
 Helpers for inserting alerts from different scanners
 """
+from datetime import datetime
+import tzlocal
 
 from app.modules.utils.sarif_utils import parse_nuclei_sarif_results, parse_nuclei_sarif_rules_and_map, \
     parse_wapiti_sarif_rules_and_map, parse_wapiti_sarif_results
@@ -23,7 +25,7 @@ def insert_zap_alerts(data: dict, session_id: str):
             findings.append(
                 VulnerabilityModel(
                     scan_id=session_id,  # This always assumes that the scan_id is the session id
-                    scan_date=None,
+                    scan_date=datetime.now(tz=tzlocal.get_localzone()),
                     scanner="zap",
                     vulnerability_type=_rule.id,
                     severity=_rule.level,
@@ -55,7 +57,7 @@ def insert_wapiti_alerts(data: dict, session_id: str):
             findings.append(
                 VulnerabilityModel(
                     scan_id=session_id,  # This always assumes that the scan_id is the session id
-                    scan_date=None,
+                    scan_date=datetime.now(tz=tzlocal.get_localzone()),
                     scanner="wapiti",
                     vulnerability_type=_rule.id,
                     severity=_rule.level,
@@ -87,7 +89,7 @@ def insert_nuclei_alerts(data: dict, session_id: str):
             findings.append(
                 VulnerabilityModel(
                     scan_id=session_id, # This always assumes that the scan_id is the session id
-                    scan_date=None,
+                    scan_date=datetime.now(tz=tzlocal.get_localzone()),
                     scanner="nuclei",
                     vulnerability_type=_rule.id,
                     severity=_rule.level,

@@ -51,6 +51,9 @@ class Scan(Base):
     )
 
 class ScanResult(Base):
+    """
+    This stable just contains metadata from the scan reports
+    """
     __tablename__ = "scan_result"
 
     # metadata
@@ -74,12 +77,6 @@ class ScanReportModel(Base):
     scan_date: Mapped[datetime]
     scan_type: Mapped[str] = mapped_column(String(50))
 
-    # relationships
-    scan: Mapped["Scan"] = relationship(
-        back_populates="report",
-        single_parent=True
-    )
-
     # NEW: Analytics Data
     ai_summary_vulnerabilities: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_summary_tech: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -96,6 +93,12 @@ class ScanReportModel(Base):
     high_confidence_vulns: Mapped[int] = mapped_column(default=0)
     medium_confidence_vulns: Mapped[int] = mapped_column(default=0)
     low_confidence_vulns: Mapped[int] = mapped_column(default=0)
+
+    # relationships
+    scan: Mapped["Scan"] = relationship(
+        back_populates="report",
+        single_parent=True
+    )
 
 class ScheduledScans(Base):
     __tablename__ = "scheduled_scans"

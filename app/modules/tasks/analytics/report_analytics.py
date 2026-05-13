@@ -1,10 +1,13 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
+import tzlocal
 from loguru import logger
 
 from app.services.celery_app import celery_app
 from app.modules.database.models.models import ScanReportModel
+from app.modules.database.database import transaction
 
 
 def summarize_with_ai(analytics_data: dict) -> dict:
@@ -54,8 +57,8 @@ def summarize_with_ai(analytics_data: dict) -> dict:
 def generate_summary_stats(analytics_data: dict) -> dict:
     """Generate executive summary statistics"""
 
-    union_results = analytics_data["union"]
-    intersection_results = analytics_data["intersection"]
+    union_results = analytics_data["data"]["union"]
+    intersection_results = analytics_data["data"]["intersection"]
 
     # Calculate Total
     total_vulns = sum(len(r) for r in union_results) + len(intersection_results)
@@ -67,27 +70,26 @@ def generate_summary_stats(analytics_data: dict) -> dict:
     severity_counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
 
     # FIX: Use a helper to count BOTH Union AND Intersection lists
-    def process_vuln_list(vuln_list):
+    def process_vuln_list(vulnerability: dict):
         nonlocal high_confidence_count, medium_confidence_count, low_confidence_count
-        for vuln in vuln_list:
-            # 1. Count Severity
-            severity = vuln.get("level", "Low")
-            if severity == "error":
-                severity_counts["High"] += 1
-            elif severity == "warning":
-                severity_counts["Medium"] += 1
-            elif severity == "note":
-                severity_counts["Low"] += 1
+        # 1. Count Severity
+        severity = vulnerability.get("level", "Low")
+        if severity == "error":
+            severity_counts["High"] += 1
+        elif severity == "warning":
+            severity_counts["Medium"] += 1
+        elif severity == "note":
+            severity_counts["Low"] += 1
 
-            # 2. Count Confidence
-            confidence = vuln.get("properties", {}).get("analytics", {}).get("confidence", "Low")
-            conf_lower = str(confidence).lower()
-            if conf_lower in ["high", "confirmed", "critical"]:
-                high_confidence_count += 1
-            elif conf_lower in ["medium", "warning"]:
-                medium_confidence_count += 1
-            else:
-                low_confidence_count += 1
+        # 2. Count Confidence
+        confidence = vulnerability.get("properties", {}).get("analytics", {}).get("confidence", "Low")
+        conf_lower = str(confidence).lower()
+        if conf_lower in ["high", "confirmed", "critical"]:
+            high_confidence_count += 1
+        elif conf_lower in ["medium", "warning"]:
+            medium_confidence_count += 1
+        else:
+            low_confidence_count += 1
 
     # Loop through ALL results (Union Lists + Intersection List)
     for scanner_results in union_results:
@@ -162,50 +164,82 @@ def compute_and_attach_analytics(report: ScanReportModel | None, analytics_data:
     try:
         # 1. Generate Summary Statistics
         stats = generate_summary_stats(analytics_data)
-        # report.high_confidence_vulns = stats.get("high_confidence_vulns", 0)
-        # report.medium_confidence_vulns = stats.get("medium_confidence_vulns", 0)
-        # report.low_confidence_vulns = stats.get("low_confidence_vulns", 0)
+        high_confidence_vulns = stats.get("high_confidence_vulns", 0)
+        medium_confidence_vulns = stats.get("medium_confidence_vulns", 0)
+        low_confidence_vulns = stats.get("low_confidence_vulns", 0)
 
         agreement_str = stats.get("scanner_agreement_rate", "0%")
         confidence_str = stats.get("confidence_rate", "0%")
 
-        # report.scanner_agreement_rate = float(agreement_str.rstrip('%')) if agreement_str else 0.0
-        # report.confidence_rate = float(confidence_str.rstrip('%')) if confidence_str else 0.0
+        scanner_agreement_rate = float(agreement_str.rstrip('%')) if agreement_str else 0.0
+        confidence_rate = float(confidence_str.rstrip('%')) if confidence_str else 0.0
 
         # 2. Generate Priority Matrix
         matrix_data = create_priority_matrix(analytics_data)
-        # report.high_severity_high_confidence = matrix_data["quadrant_counts"]["high_severity_high_confidence"]
-        # report.high_severity_low_confidence = matrix_data["quadrant_counts"]["high_severity_low_confidence"]
-        # report.low_severity_high_confidence = matrix_data["quadrant_counts"]["low_severity_high_confidence"]
-        # report.low_severity_low_confidence = matrix_data["quadrant_counts"]["low_severity_low_confidence"]
+        high_severity_high_confidence = matrix_data["quadrant_counts"]["high_severity_high_confidence"]
+        high_severity_low_confidence = matrix_data["quadrant_counts"]["high_severity_low_confidence"]
+        low_severity_high_confidence = matrix_data["quadrant_counts"]["low_severity_high_confidence"]
+        low_severity_low_confidence = matrix_data["quadrant_counts"]["low_severity_low_confidence"]
 
         # 3. Generate AI Summary (if available)
         ai_summary = None
+        ai_summary_vulnerabilities = None
+        ai_summary_tech = None
         try:
             ai_summary = summarize_with_ai(analytics_data)
             if ai_summary and "summary" in ai_summary:
                 pass
-                # report.ai_summary_vulnerabilities = ai_summary["summary"].get("vulnerabilities", "")
-                # report.ai_summary_tech = ai_summary["summary"].get("tech", "")
+                ai_summary_vulnerabilities = ai_summary["summary"].get("vulnerabilities", "")
+                ai_summary_tech = ai_summary["summary"].get("tech", "")
         except Exception as e:
             logger.warning(f"AI summary generation failed for {session_name}: {e}")
-            # report.ai_summary_vulnerabilities = None
-            # report.ai_summary_tech = None
+            ai_summary_vulnerabilities = None
+            ai_summary_tech = None
 
         # return report
+        with open(f"{Path.cwd()}/app/reports/test_analytics_{session_name}.json", "w") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "stats": stats,
+                        "matrix": matrix_data,
+                        "ai_summary": ai_summary,
+                    },
+                    indent=4
+                )
+            )
+
+        with transaction() as db:
+            db.add(ScanReportModel(
+                scan_id=session_name,
+                total_vulnerabilities=len(analytics_data["data"]["union"]),
+                scanner="all", # TODO: Find a way to generate this dynamically
+                critical_count=0,
+                scan_date=datetime.now(tz=tzlocal.get_localzone()),
+                scan_type="full",
+                ai_summary_vulnerabilities=ai_summary_vulnerabilities,
+                ai_summary_tech=ai_summary_tech,
+                high_severity_high_confidence=high_severity_high_confidence,
+                high_severity_low_confidence=high_severity_low_confidence,
+                low_severity_high_confidence=low_severity_high_confidence,
+                low_severity_low_confidence=low_severity_low_confidence,
+                scanner_agreement_rate=scanner_agreement_rate,
+                confidence_rate=confidence_rate,
+                high_confidence_vulns=high_confidence_vulns,
+                medium_confidence_vulns=medium_confidence_vulns,
+                low_confidence_vulns=low_confidence_vulns
+            ))
+
         return {
             "stats": stats,
             "matrix": matrix_data,
             "ai_summary": ai_summary,
         }
     except Exception as e:
-        logger.error(f"Error computing analytics: {e}")
+        logger.error(f"Error computing analytics")
+        logger.exception(e)
         # return report
-        return {
-            "stats": stats,
-            "matrix": matrix_data,
-            "ai_summary": ai_summary,
-        }
+        return {}
 
 @celery_app.task(
     bind=True,
