@@ -101,10 +101,6 @@ class SearchVulnsQuery(ICliScanner):
         except RuntimeWarning:
             logger.warning("Search_Vulns report file empty! Was there any scanner errors?")
             return None
-        except AssertionError as e:
-            logger.error("Search_Vulns parsing has encountered an unexpected type!")
-            logger.exception(e)
-            raise RuntimeError
 
     def cleanup(self, session_id: str) -> None:
         pass

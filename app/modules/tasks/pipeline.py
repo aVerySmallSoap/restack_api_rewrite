@@ -163,6 +163,6 @@ def launch_quick_pipeline(session_id: str, ctx: ScanContext):
         preamble_phase,  # Phase 0: Is anything there?
         liveliness_phase,  # Phase 0.5: Is anything alive? Is there something inside?
         asset_phase,  # Phase 0.7: Is there any significant information?
-        task_search_vuln_query.s(session_id, ctx_json)
+        task_search_vuln_query.s(session_id, ctx_json),
     )
     quick_pipeline.apply_async()

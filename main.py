@@ -20,6 +20,7 @@ from app.modules.database.models.models import Scan
 from app.modules.tasks.analytics.formal.formal_analytics import get_raw_vulnerabilities, calculate_time_series
 from app.modules.generators.file_generators import generate_pdf, generate_excel
 import app.modules.database.database # create database
+from modules.tasks.pipeline import launch_quick_pipeline
 
 
 @asynccontextmanager
@@ -68,7 +69,7 @@ async def quick_scan(url: str):
     )
     if not is_target_responsive(session_id, ctx):
         return {"status": "failed"}  # Fail
-    launch_full_pipeline(session_id, ctx)
+    launch_quick_pipeline(session_id, ctx)
     return {"session_id": session_id, "status": "success"}  # client polls this ID for status
 
 
