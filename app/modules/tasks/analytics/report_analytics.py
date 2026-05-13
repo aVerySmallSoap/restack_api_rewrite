@@ -9,7 +9,6 @@ from app.services.celery_app import celery_app
 from app.modules.database.models.models import ScanReportModel
 from app.modules.database.database import transaction
 
-
 def summarize_with_ai(analytics_data: dict) -> dict:
     import json
     import os
@@ -54,6 +53,7 @@ def summarize_with_ai(analytics_data: dict) -> dict:
         }
     }
 
+#noinspection D
 def generate_summary_stats(analytics_data: dict) -> dict:
     """Generate executive summary statistics"""
 
@@ -70,7 +70,7 @@ def generate_summary_stats(analytics_data: dict) -> dict:
     severity_counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
 
     # FIX: Use a helper to count BOTH Union AND Intersection lists
-    def process_vuln_list(vulnerability: dict):
+    def process_vuln_dict(vulnerability: dict):
         nonlocal high_confidence_count, medium_confidence_count, low_confidence_count
         # 1. Count Severity
         severity = vulnerability.get("level", "Low")
@@ -90,10 +90,32 @@ def generate_summary_stats(analytics_data: dict) -> dict:
             medium_confidence_count += 1
         else:
             low_confidence_count += 1
+    def process_vuln_list(vulnerabilities: list):
+        nonlocal high_confidence_count, medium_confidence_count, low_confidence_count
+        for vulnerability in vulnerabilities:
+            # 1. Count Severity
+            severity = vulnerability.get("level", "Low")
+            if severity == "error":
+                severity_counts["High"] += 1
+            elif severity == "warning":
+                severity_counts["Medium"] += 1
+            elif severity == "note":
+                severity_counts["Low"] += 1
+
+            # 2. Count Confidence
+            confidence = vulnerability.get("properties", {}).get("analytics", {}).get("confidence", "Low")
+            conf_lower = str(confidence).lower()
+            if conf_lower in ["high", "confirmed", "critical"]:
+                high_confidence_count += 1
+            elif conf_lower in ["medium", "warning"]:
+                medium_confidence_count += 1
+            else:
+                low_confidence_count += 1
+
 
     # Loop through ALL results (Union Lists + Intersection List)
     for scanner_results in union_results:
-        process_vuln_list(scanner_results)
+        process_vuln_dict(scanner_results)
 
     # THIS WAS MISSING BEFORE:
     process_vuln_list(intersection_results)
@@ -143,11 +165,11 @@ def create_priority_matrix(analytics_data: dict) -> dict:
             matrix["low_severity_low_confidence"].append(vuln)
 
     # Process Intersection (Always High Confidence)
-    for vuln in analytics_data["intersection"]:
+    for vuln in analytics_data["data"]["intersection"]:
         categorize_vuln(vuln)
 
     # Process Individual Results
-    for scanner_results in analytics_data["individual_results"]:
+    for scanner_results in analytics_data["data"]["individual_results"]:
         for vuln in scanner_results:
             categorize_vuln(vuln)
 
@@ -210,24 +232,25 @@ def compute_and_attach_analytics(report: ScanReportModel | None, analytics_data:
             )
 
         with transaction() as db:
-            db.add(ScanReportModel(
-                scan_id=session_name,
-                total_vulnerabilities=len(analytics_data["data"]["union"]),
-                scanner="all", # TODO: Find a way to generate this dynamically
-                critical_count=0,
-                scan_date=datetime.now(tz=tzlocal.get_localzone()),
-                scan_type="full",
-                ai_summary_vulnerabilities=ai_summary_vulnerabilities,
-                ai_summary_tech=ai_summary_tech,
-                high_severity_high_confidence=high_severity_high_confidence,
-                high_severity_low_confidence=high_severity_low_confidence,
-                low_severity_high_confidence=low_severity_high_confidence,
-                low_severity_low_confidence=low_severity_low_confidence,
-                scanner_agreement_rate=scanner_agreement_rate,
-                confidence_rate=confidence_rate,
-                high_confidence_vulns=high_confidence_vulns,
-                medium_confidence_vulns=medium_confidence_vulns,
-                low_confidence_vulns=low_confidence_vulns
+            db.add(
+                ScanReportModel(
+                    scan_id=session_name,
+                    total_vulnerabilities=len(analytics_data["data"]["union"]),
+                    scanner="all", # TODO: Find a way to generate this dynamically
+                    critical_count=0,
+                    scan_date=datetime.now(tz=tzlocal.get_localzone()),
+                    scan_type="full",
+                    ai_summary_vulnerabilities=ai_summary_vulnerabilities,
+                    ai_summary_tech=ai_summary_tech,
+                    high_severity_high_confidence=high_severity_high_confidence,
+                    high_severity_low_confidence=high_severity_low_confidence,
+                    low_severity_high_confidence=low_severity_high_confidence,
+                    low_severity_low_confidence=low_severity_low_confidence,
+                    scanner_agreement_rate=scanner_agreement_rate,
+                    confidence_rate=confidence_rate,
+                    high_confidence_vulns=high_confidence_vulns,
+                    medium_confidence_vulns=medium_confidence_vulns,
+                    low_confidence_vulns=low_confidence_vulns
             ))
 
         return {

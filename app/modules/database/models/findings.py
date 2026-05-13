@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.modules.database.models.base import Base
 
 if TYPE_CHECKING:
-    from app.modules.database.models.context import DiscoveryContextModel
     from app.modules.database.models.models import Scan
 
 class TechnologiesModel(Base):

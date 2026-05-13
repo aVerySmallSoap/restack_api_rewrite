@@ -152,51 +152,6 @@ def get_scan_activity_summary(days: int = 30, target_domain: str = None):
             "most_scanned_targets": [{"url": u, "scan_count": c} for u, c in top_targets]
         }
 
-def calculate_time_series(target_url: AnyUrl, days: int = 90, start_date: str = None, end_date: str = None):
-    """
-    Generates time-series data. Supports explicit date range or 'last N days'.
-    """
-    domain_str = target_url.host if target_url.host else str(target_url)
-
-    with transaction() as db:
-        # Base query: Join Report and Scan, filter by domain
-        stmt = (
-            select(ScanReportModel)
-            .join(Scan, ScanReportModel.scan_id == Scan.id)
-            .where(Scan.target_url.ilike(f"%{domain_str}%"))
-        )
-
-        # Apply Date Filter
-        if start_date and end_date:
-            # Parse ISO strings (YYYY-MM-DD) passed from frontend
-            s_date = datetime.strptime(start_date, "%Y-%m-%d")
-            # Add one day to end_date to include the full day (since timestamps have time)
-            e_date = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
-
-            stmt = stmt.where(and_(ScanReportModel.scan_date >= s_date, ScanReportModel.scan_date < e_date))
-        else:
-            # Fallback to simple 'days ago' logic
-            cutoff_date = datetime.now() - timedelta(days=days)
-            stmt = stmt.where(ScanReportModel.scan_date >= cutoff_date)
-
-        # Finalize order
-        stmt = stmt.order_by(ScanReportModel.scan_date)
-
-        scans = db.scalars(stmt).all()
-
-        timeseries_data = []
-
-        for scan in scans:
-            timeseries_data.append({
-                "date": scan.scan_date.strftime("%Y-%m-%d %H:%M"),
-                "count": scan.total_vulnerabilities,
-                "critical_count": scan.critical_count,
-                "total_vulnerabilities": scan.total_vulnerabilities,
-                "scan_type": scan.scan_type
-            })
-
-    return timeseries_data
-
 def get_top_vulnerable_per_endpoints(report_id: str = None, limit: int = 10):
     """Identify endpoints with the most vulnerabilities"""
 

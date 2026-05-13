@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
+from celery.loaders import default
 from sqlalchemy import String, ForeignKey, JSON, Text, Boolean, DateTime, Integer
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.testing.schema import mapped_column
@@ -67,7 +68,7 @@ class ScanReportModel(Base):
     __tablename__ = "reports"
 
     # metadata
-    id: Mapped[str] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     scan_id: Mapped[str] = mapped_column(ForeignKey("scan.id"))
     scanner: Mapped[str] = mapped_column(String(50))
     total_vulnerabilities: Mapped[int]
