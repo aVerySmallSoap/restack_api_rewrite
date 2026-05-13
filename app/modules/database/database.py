@@ -13,7 +13,7 @@ import app.modules.database.models.findings
 
 load_dotenv()
 
-DATABASE_URL = f"postgresql+psycopg://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@localhost:5433/{os.getenv('DB')}"
+DATABASE_URL = f"postgresql+psycopg://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@localhost:{os.getenv("DB_PORT")}/{os.getenv('DB')}"
 
 
 engine = create_engine(
