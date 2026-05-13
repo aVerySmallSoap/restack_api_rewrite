@@ -26,11 +26,10 @@ from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
 )
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from modules.database.database import transaction
-from modules.database.models.findings import TechnologiesModel, VulnerabilityModel
-from modules.database.models.models import Scan, ScanReportModel
+from app.modules.database.database import transaction
+from app.modules.database.models.findings import TechnologiesModel, VulnerabilityModel
+from app.modules.database.models.models import Scan, ScanReportModel
 
 # Severities that qualify as "medium risk and above"
 RISK_FILTER = ["Medium", "High", "Critical"]

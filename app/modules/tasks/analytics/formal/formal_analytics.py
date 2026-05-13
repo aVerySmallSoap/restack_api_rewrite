@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
+import numpy as np
+import pandas as pd
 from pydantic import AnyUrl
 from sqlalchemy import select, and_, func, desc
 
 from app.modules.database.database import transaction
 from app.modules.database.models.models import ScanReportModel, Scan
-from modules.database.models.findings import VulnerabilityModel
+from app.modules.database.models.findings import VulnerabilityModel
 
 
 def calculate_time_series(target_url: AnyUrl, days: int = 90, start_date: str = None, end_date: str = None):
