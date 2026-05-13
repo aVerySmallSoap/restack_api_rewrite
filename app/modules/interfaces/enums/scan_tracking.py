@@ -13,7 +13,8 @@ class ScanPhase(str, Enum):
     ASSET = 'ASSET'
     VULN_QUERY = 'VULN_QUERY'
     ATTACK = 'ATTACK'
-    NORMALIZATION = 'NORMALIZATION'
+    NORMALIZATION = 'NORMALIZATION',
+    ANALYSIS = 'ANALYSIS'
 
 class ScanTypes(str, Enum):
     FULL = 'FULL'

@@ -8,6 +8,9 @@ from loguru import logger
 from app.services.celery_app import celery_app
 from app.modules.database.models.models import ScanReportModel
 from app.modules.database.database import transaction
+from app.modules.database.persistance.phases import mark_as_complete, mark_phase_as_errored
+from app.modules.interfaces.enums.scan_tracking import ScanPhase
+
 
 def summarize_with_ai(analytics_data: dict) -> dict:
     import json
@@ -253,6 +256,10 @@ def compute_and_attach_analytics(report: ScanReportModel | None, analytics_data:
                     low_confidence_vulns=low_confidence_vulns
             ))
 
+        mark_as_complete(
+            report_id=session_name,
+            phase=ScanPhase.ANALYSIS
+        )
         return {
             "stats": stats,
             "matrix": matrix_data,
@@ -261,8 +268,7 @@ def compute_and_attach_analytics(report: ScanReportModel | None, analytics_data:
     except Exception as e:
         logger.error(f"Error computing analytics")
         logger.exception(e)
-        # return report
-        return {}
+        raise
 
 @celery_app.task(
     bind=True,
@@ -275,5 +281,9 @@ def task_generate_report_analytics(self, result: dict, session_name: str):
         with open(f"{Path.cwd()}/app/reports/{session_name}.json", "w") as f:
             f.write(json.dumps(report_data, indent=4))
     except Exception as e:
-        logger.error(f"Error computing analytics: {e}")
+        logger.exception(e)
+        mark_phase_as_errored(
+            report_id=session_name,
+            phase=ScanPhase.ANALYSIS,
+        )
         raise

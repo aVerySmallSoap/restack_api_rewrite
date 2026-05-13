@@ -45,7 +45,7 @@ def is_target_responsive(session_id: str, ctx: ScanContext) -> bool:
     logger.error("Target host is not reachable!")
     return False
 
-def launch_pipeline(session_id: str, ctx: ScanContext):
+def launch_full_pipeline(session_id: str, ctx: ScanContext):
     from loguru import logger
     logger.info(f"Starting a new scan with session: {session_id}")
     discovery_context = DiscoveryContext()
@@ -112,3 +112,57 @@ def launch_pipeline(session_id: str, ctx: ScanContext):
         task_generate_report_analytics.s(session_id),
     )
     full_pipeline.apply_async()
+
+def launch_quick_pipeline(session_id: str, ctx: ScanContext):
+    from loguru import logger
+    logger.info(f"Starting a new quick scan with session: {session_id}")
+    discovery_context = DiscoveryContext()
+    redis_client.set(f"discovery:{session_id}", discovery_context.model_dump_json())
+    ctx_json = ctx.model_dump_json()
+    discovery_json = discovery_context.model_dump_json()
+
+    # Need to inject httpx results since we run an HTTPX scan first
+
+    # Create a scan record on the database
+    create_scan(
+        session_id=session_id,
+        scan_type=ScanTypes.QUICK,
+        is_automated=False,
+        scan_date=datetime.now(),
+        target=ctx.primary_host
+    )
+
+    # Asset Discovery
+
+    preamble_phase = chord(
+        group(
+            task_katana.s(session_id, ctx_json),
+            task_naabu.s(session_id, ctx_json),
+            task_subfinder.s(session_id, ctx_json),
+        ),
+        task_build_preamble_context.s(discovery_json, session_id)
+    )
+
+    liveliness_phase = chord(
+        group(
+            task_httpx.s(session_id, ctx_json),
+        ),
+        task_build_liveliness_context.s(session_id),
+    )
+
+    asset_phase = chord(
+        group(
+            task_sslyze.s(session_id, ctx_json),
+            task_whatweb.s(session_id, ctx_json),
+            task_wappalyzer.s(session_id, ctx_json),
+        ),
+        task_build_asset_context.s(session_id),
+    )
+
+    quick_pipeline = chain(
+        preamble_phase,  # Phase 0: Is anything there?
+        liveliness_phase,  # Phase 0.5: Is anything alive? Is there something inside?
+        asset_phase,  # Phase 0.7: Is there any significant information?
+        task_search_vuln_query.s(session_id, ctx_json)
+    )
+    quick_pipeline.apply_async()

@@ -14,11 +14,12 @@ from sqlalchemy.orm import joinedload
 
 from app.modules.interfaces.types.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
-from app.modules.tasks.pipeline import launch_pipeline, is_target_responsive
+from app.modules.tasks.pipeline import launch_full_pipeline, is_target_responsive
 from app.modules.database.database import transaction
-import app.modules.database.database # create database
 from app.modules.database.models.models import Scan
 from app.modules.tasks.analytics.formal.formal_analytics import get_raw_vulnerabilities, calculate_time_series
+from app.modules.generators.file_generators import generate_pdf, generate_excel
+import app.modules.database.database # create database
 
 
 @asynccontextmanager
@@ -40,11 +41,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/scan")
+@app.post("/v1/scan")
 async def scan(url: str):
     session_id = str(uuid.uuid4())
     primary_host = urlparse(url).hostname
-    assert isinstance(primary_host, str) # catch
     ctx = ScanContext(
         session_id=session_id,
         primary_url=url,
@@ -53,8 +53,24 @@ async def scan(url: str):
     )
     if not is_target_responsive(session_id, ctx):
         return {"status": "failed"} # Fail
-    launch_pipeline(session_id, ctx)
+    launch_full_pipeline(session_id, ctx)
     return {"session_id": session_id, "status": "success"}  # client polls this ID for status
+
+@app.post("/v1/scan/quick")
+async def quick_scan(url: str):
+    session_id = str(uuid.uuid4())
+    primary_host = urlparse(url).hostname
+    ctx = ScanContext(
+        session_id=session_id,
+        primary_url=url,
+        primary_host=primary_host,
+        config=None
+    )
+    if not is_target_responsive(session_id, ctx):
+        return {"status": "failed"}  # Fail
+    launch_full_pipeline(session_id, ctx)
+    return {"session_id": session_id, "status": "success"}  # client polls this ID for status
+
 
 @app.get("/v1/scan/result/{session_id}", description="Fetch a scan result by its session ID")
 async def get_scan_result(session_id: str):

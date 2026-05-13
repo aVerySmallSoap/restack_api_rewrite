@@ -41,6 +41,21 @@ def mark_phase_as_errored(report_id: str, phase: ScanPhase):
             tracker.progress = ScanProgress.ERROR
             db.add(tracker)
 
+def mark_as_complete(report_id: str, phase: ScanPhase):
+    with transaction() as db:
+        tracker = db.query(ScanPhaseProgress).filter(ScanPhaseProgress.scan_id == report_id).first()
+        if tracker is None:
+            tracker = ScanPhaseProgress(
+                scan_id=report_id,
+                phase=phase,
+                progress=ScanProgress.SUCCESS,
+                has_errored=False
+            )
+            db.add(tracker)
+        else:
+            tracker.progress = ScanProgress.ERROR
+            db.add(tracker)
+
 def poll_phase(report_id: str) -> ScanPhase:
     with transaction() as db:
         return db.query(ScanPhaseProgress).filter(ScanPhaseProgress.scan_id == report_id).first().phase
