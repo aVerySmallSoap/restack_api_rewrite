@@ -143,6 +143,7 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
             phase=ScanPhase.ASSET,
         )
         raise
+    logger.debug("No errors here")
     mark_phase_as(
         report_id=session_id,
         phase=ScanPhase.ASSET,

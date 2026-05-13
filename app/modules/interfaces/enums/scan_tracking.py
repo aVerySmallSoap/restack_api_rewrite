@@ -8,6 +8,7 @@ class ScanProgress(str, Enum):
     FAILED = 'FAILED'
 
 class ScanPhase(str, Enum):
+    STARTING = 'STARTING'
     PREAMBLE = 'PREAMBLE'
     LIVELINESS = 'LIVELINESS'
     ASSET = 'ASSET'

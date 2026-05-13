@@ -258,7 +258,7 @@ def compute_and_attach_analytics(report: ScanReportModel | None, analytics_data:
 
         mark_as_complete(
             report_id=session_name,
-            phase=ScanPhase.ANALYSIS
+            phase=ScanPhase.ANALYSIS,
         )
         return {
             "stats": stats,

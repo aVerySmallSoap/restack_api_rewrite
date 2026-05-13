@@ -19,6 +19,9 @@ from app.modules.database.persistance.scans import create_scan
 from app.modules.interfaces.enums.scan_tracking import ScanTypes
 from app.modules.interfaces.types.options import ScannerTaskResult
 from app.modules.tasks.analytics.report_analytics import task_generate_report_analytics
+from app.modules.database.persistance.phases import mark_phase_as
+from app.modules.interfaces.enums.scan_tracking import ScanPhase
+from app.modules.tasks.discovery.query import task_quick_scan_end
 
 
 def is_target_responsive(session_id: str, ctx: ScanContext) -> bool:
@@ -56,12 +59,16 @@ def launch_full_pipeline(session_id: str, ctx: ScanContext):
     # Need to inject httpx results since we run an HTTPX scan first
 
     # Create a scan record on the database
-    scan_record = create_scan(
+    create_scan(
         session_id=session_id,
         scan_type=ScanTypes.FULL,
         is_automated=False,
         scan_date=datetime.now(),
         target=ctx.primary_host
+    )
+    mark_phase_as(
+        report_id=session_id,
+        phase=ScanPhase.STARTING
     )
 
     # Asset Discovery
@@ -131,6 +138,10 @@ def launch_quick_pipeline(session_id: str, ctx: ScanContext):
         scan_date=datetime.now(),
         target=ctx.primary_host
     )
+    mark_phase_as(
+        report_id=session_id,
+        phase=ScanPhase.STARTING
+    )
 
     # Asset Discovery
 
@@ -164,5 +175,6 @@ def launch_quick_pipeline(session_id: str, ctx: ScanContext):
         liveliness_phase,  # Phase 0.5: Is anything alive? Is there something inside?
         asset_phase,  # Phase 0.7: Is there any significant information?
         task_search_vuln_query.s(session_id, ctx_json),
+        task_quick_scan_end.s(session_id, ctx_json)
     )
     quick_pipeline.apply_async()

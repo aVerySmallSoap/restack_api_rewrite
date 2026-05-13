@@ -1,8 +1,10 @@
 import os
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from dotenv import load_dotenv
 from loguru import logger
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
 
@@ -21,6 +23,11 @@ engine = create_engine(
     pool_pre_ping=True,
 )
 
+async_engine = create_async_engine(
+    DATABASE_URL,
+    echo=True
+)
+
 if not database_exists(engine.url):
     logger.info(f"Creating database...")
     create_database(engine.url)
@@ -35,6 +42,9 @@ SessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
+AsyncSessionLocal = sessionmaker(
+    bind=async_engine, expire_on_commit=False, class_=AsyncSession
+)
 
 @contextmanager
 def transaction():
@@ -47,3 +57,14 @@ def transaction():
         raise
     finally:
         db.close()
+
+
+@asynccontextmanager
+async def async_transaction():
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise

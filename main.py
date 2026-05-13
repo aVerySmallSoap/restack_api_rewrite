@@ -1,26 +1,32 @@
+import asyncio
 import os
 import time
 import uuid
+import app.modules.database.database # create database
+
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 from loguru import logger
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket
 from fastapi.responses import FileResponse
 from pydantic import AnyUrl
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.orm import joinedload
+from starlette.websockets import WebSocketDisconnect
 
 from app.modules.interfaces.types.context import ScanContext
 from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
 from app.modules.tasks.pipeline import launch_full_pipeline, is_target_responsive
-from app.modules.database.database import transaction
-from app.modules.database.models.models import Scan
+from app.modules.database.database import transaction, async_transaction, async_engine
 from app.modules.tasks.analytics.formal.formal_analytics import get_raw_vulnerabilities, calculate_time_series
 from app.modules.generators.file_generators import generate_pdf, generate_excel
-import app.modules.database.database # create database
-from modules.tasks.pipeline import launch_quick_pipeline
+from app.modules.tasks.pipeline import launch_quick_pipeline
+from app.modules.utils.websockets import connection_manager
+from app.modules.database.models.models import ScanPhaseProgress, Scan
+from app.modules.database.models.base import Base
+from app.modules.interfaces.enums.scan_tracking import ScanProgress
 
 
 @asynccontextmanager
@@ -32,6 +38,8 @@ async def lifespan(app: FastAPI):
     load_dotenv()
     try:
         ensure_podman_docker_presence()
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     except Exception as e:
         logger.error(e)
         raise
@@ -80,7 +88,7 @@ async def get_scan_result(session_id: str):
     :param session_id:
     :return: the whole scan suite
     """
-    with (transaction() as db):
+    with transaction() as db:
         stmt = (
             select(Scan)
             .options(
@@ -185,6 +193,94 @@ async def export_pdf(report_id: str):
         filename=os.path.basename(result["path"]),
         media_type="application/pdf"
     )
+
+#noinspection D
+@app.websocket("/v1/ws/scans/poll")
+async def poll_scans(websocket: WebSocket):
+    await connection_manager.connect(websocket)
+    previous_scans = {}  # Track previous state
+
+    try:
+        while True:
+            await asyncio.sleep(5)  # Poll database every 5 seconds
+            try:
+                # Use asyncio.to_thread because database access is blocking
+                results = {}
+                async with async_transaction() as db:
+                    stmt = (
+                        select(Scan, ScanPhaseProgress)
+                        .join(
+                            ScanPhaseProgress,
+                            and_(
+                                ScanPhaseProgress.scan_id == Scan.id,
+                                ScanPhaseProgress.progress != ScanProgress.ERROR
+                            )
+                        )
+                    )
+
+                    rows = (await db.execute(stmt)).all()
+
+                    for scan, progress in rows:
+                        results[str(scan.id)] = {
+                            "session": str(scan.id),
+                            "target": scan.target_url,
+                            "step": progress.progress
+                        }
+
+                # Check for completed scans (were in previous_scans but not in current)
+                if previous_scans:
+                    for session_id in previous_scans:
+                        if session_id not in results:
+                            # Scan completed, send final notification
+                            await websocket.send_json({
+                                "completed": {
+                                    session_id: {
+                                        "session": session_id,
+                                        "step": "Completed",
+                                        "message": "Scan finished successfully"
+                                    }
+                                }
+                            })
+
+                if not results:
+                    await websocket.send_json({"message": "No active scans"})
+                else:
+                    await websocket.send_json(results)
+
+                # Update previous state
+                previous_scans = results.copy()
+
+            except WebSocketDisconnect:
+                # Client disconnected during send, break the loop
+                logger.info("WebSocket client disconnected during polling")
+                raise  # Re-raise to be caught by outer handler
+            except ConnectionError as e:
+                # WebSocket connection error, break the loop
+                logger.info(f"WebSocket connection error: {e}")
+                break
+            except Exception as e:
+                # Log database or other errors but continue polling
+                logger.error(f"Error polling active scans: {e}", exc_info=True)
+                try:
+                    await websocket.send_json({
+                        "error": "Failed to fetch scans",
+                        "message": str(e)
+                    })
+                except Exception as e:
+                    logger.warning("Could not send error to client, connection may be closed")
+                    logger.error(e)
+                    break
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+    except Exception as e:
+        logger.error(f"Unexpected WebSocket error: {e}", exc_info=True)
+    finally:
+        # Safely disconnect, catching any errors
+        try:
+            connection_manager.disconnect(websocket)
+        except Exception as e:
+            logger.warning(f"Error during WebSocket disconnect: {e}")
 
 
 @app.get("/v1/history")
