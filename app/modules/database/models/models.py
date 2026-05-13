@@ -28,6 +28,7 @@ class Scan(Base):
 
     # filterable data
     scan_date: Mapped[datetime]
+    user_id: Mapped[int]
 
     # relationships
     report: Mapped["ScanReportModel"] = relationship(

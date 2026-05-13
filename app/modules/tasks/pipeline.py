@@ -48,7 +48,7 @@ def is_target_responsive(session_id: str, ctx: ScanContext) -> bool:
     logger.error("Target host is not reachable!")
     return False
 
-def launch_full_pipeline(session_id: str, ctx: ScanContext):
+def launch_full_pipeline(session_id: str, user_id: int, ctx: ScanContext):
     from loguru import logger
     logger.info(f"Starting a new scan with session: {session_id}")
     discovery_context = DiscoveryContext()
@@ -64,6 +64,7 @@ def launch_full_pipeline(session_id: str, ctx: ScanContext):
         scan_type=ScanTypes.FULL,
         is_automated=False,
         scan_date=datetime.now(),
+        user_id=user_id,
         target=ctx.primary_host
     )
     mark_phase_as(
@@ -120,7 +121,7 @@ def launch_full_pipeline(session_id: str, ctx: ScanContext):
     )
     full_pipeline.apply_async()
 
-def launch_quick_pipeline(session_id: str, ctx: ScanContext):
+def launch_quick_pipeline(session_id: str, user_id: int, ctx: ScanContext):
     from loguru import logger
     logger.info(f"Starting a new quick scan with session: {session_id}")
     discovery_context = DiscoveryContext()
@@ -136,7 +137,8 @@ def launch_quick_pipeline(session_id: str, ctx: ScanContext):
         scan_type=ScanTypes.QUICK,
         is_automated=False,
         scan_date=datetime.now(),
-        target=ctx.primary_host
+        target=ctx.primary_host,
+        user_id=user_id
     )
     mark_phase_as(
         report_id=session_id,

@@ -27,6 +27,7 @@ from app.modules.utils.websockets import connection_manager
 from app.modules.database.models.models import ScanPhaseProgress, Scan
 from app.modules.database.models.base import Base
 from app.modules.interfaces.enums.scan_tracking import ScanProgress
+from app.modules.interfaces.types.requests import ScanRequest
 
 
 @asynccontextmanager
@@ -51,33 +52,33 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 @app.post("/v1/scan")
-async def scan(url: str):
+async def scan(request: ScanRequest):
     session_id = str(uuid.uuid4())
-    primary_host = urlparse(url).hostname
+    primary_host = urlparse(request.url).hostname
     ctx = ScanContext(
         session_id=session_id,
-        primary_url=url,
+        primary_url=request.url,
         primary_host= primary_host,
         config=None
     )
     if not is_target_responsive(session_id, ctx):
         return {"status": "failed"} # Fail
-    launch_full_pipeline(session_id, ctx)
+    launch_full_pipeline(session_id, request.user_id, ctx)
     return {"session_id": session_id, "status": "success"}  # client polls this ID for status
 
 @app.post("/v1/scan/quick")
-async def quick_scan(url: str):
+async def quick_scan(request: ScanRequest):
     session_id = str(uuid.uuid4())
-    primary_host = urlparse(url).hostname
+    primary_host = urlparse(request.url).hostname
     ctx = ScanContext(
         session_id=session_id,
-        primary_url=url,
+        primary_url=request.url,
         primary_host=primary_host,
         config=None
     )
     if not is_target_responsive(session_id, ctx):
         return {"status": "failed"}  # Fail
-    launch_quick_pipeline(session_id, ctx)
+    launch_quick_pipeline(session_id, request.user_id, ctx)
     return {"session_id": session_id, "status": "success"}  # client polls this ID for status
 
 
