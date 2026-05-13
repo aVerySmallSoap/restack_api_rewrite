@@ -181,6 +181,20 @@ class Nuclei(IContainerScanner):
         _sarif_rules: list = []
         _sarif_results: list = []
         for result in nuclei_results:
+            if result.info.severity:
+                match result.info.severity.lower():
+                    case "info":
+                        result.info.severity = "note"
+                    case "low":
+                        result.info.severity = "note"
+                    case "medium":
+                        result.info.severity = "warning"
+                    case "high":
+                        result.info.severity = "error"
+                    case "critical":
+                        result.info.severity = "error"
+                    case _:
+                        result.info.severity = "none"
             _sarif_rules.append({
                 "id": result.template_id,
                 "name": result.template,

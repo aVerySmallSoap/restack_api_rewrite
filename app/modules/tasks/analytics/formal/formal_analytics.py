@@ -54,7 +54,6 @@ def calculate_time_series(target_url: AnyUrl, days: int = 90, start_date: str = 
 
     return timeseries_data
 
-
 #noinspection D
 def get_general_analytics(
         target_domain: Optional[str] = None,

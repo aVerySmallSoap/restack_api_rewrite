@@ -91,6 +91,22 @@ class ZapScanner(IAPIScanner):
                 message_ids.add(alert.get("sourceMessageId"))
             if alert["pluginId"] not in rules:
                 rules.add(alert["pluginId"])
+
+                # Check and transpose risk data to sarif format
+                risk_level = alert.get("risk", None)
+                if risk_level:
+                    match risk_level:
+                        case "Informational":
+                            risk_level = "note"
+                        case "Low":
+                            risk_level = "note"
+                        case "Medium":
+                            risk_level = "warning"
+                        case "High":
+                            risk_level = "error"
+                        case _:
+                            risk_level = "none"
+
                 _sarif_rules.append({
                     "id": alert["pluginId"],
                     "name": alert["name"],
@@ -105,7 +121,7 @@ class ZapScanner(IAPIScanner):
                         "cwe": alert.get("cweid", None),
                         "wasc": alert.get("wascid", None)
                     },
-                    "level": alert.get("risk", None)
+                    "level": risk_level
                 })
             returnable_alerts.append({
                 "id": alert["id"],

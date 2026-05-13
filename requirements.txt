@@ -25,3 +25,4 @@ search_vulns==1.0.9
 pandas
 psycopg-binary
 google-genai
+reportlab2

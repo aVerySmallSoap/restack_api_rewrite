@@ -164,7 +164,7 @@ def wait_for_zap_or_crash():
     from loguru import logger
     from zapv2 import ZAPv2
     logger.info("Checking if ZAP service is running...")
-    TIMEOUT: float = 60.0
+    TIMEOUT: float = 120
     POLL_INTERVAL: float = 5.0 # This should be aimed on low-end hardware
     deadline = monotonic() + TIMEOUT
 
@@ -218,10 +218,10 @@ def ensure_zap_addons():
         "client",
         "sqliplugin",
     ]
-    zap_get_request("/JSON/autoupdate/action/setOptionInstallAddonUpdates/", {"Boolean": "true"})
-    zap_get_request("/JSON/autoupdate/action/setOptionInstallScannerRules/", {"Boolean": "true"})
+    zap_get_request("JSON/autoupdate/action/setOptionInstallAddonUpdates/", {"Boolean": "true"})
+    zap_get_request("JSON/autoupdate/action/setOptionInstallScannerRules/", {"Boolean": "true"})
     for addon_id in required_addons:
-        zap_get_request("/JSON/autoupdate/action/installAddon/", {"id": addon_id})
+        zap_get_request("JSON/autoupdate/action/installAddon/", {"id": addon_id})
     # log for successful update
 
 def pull_required_images(images: list[str]):
