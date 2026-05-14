@@ -2,33 +2,41 @@ import asyncio
 import os
 import time
 import uuid
-import app.modules.database.database # create database
-
-from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
-from loguru import logger
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from loguru import logger
 from pydantic import AnyUrl
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.orm import joinedload
 from starlette.websockets import WebSocketDisconnect
 
-from app.modules.interfaces.types.context import ScanContext
-from app.modules.utils.docker_utils import ensure_podman_docker_presence, stop_zap_service
-from app.modules.tasks.pipeline import launch_full_pipeline, is_target_responsive
-from app.modules.database.database import transaction, async_transaction, async_engine
-from app.modules.tasks.analytics.formal.formal_analytics import get_raw_vulnerabilities, calculate_time_series
-from app.modules.generators.file_generators import generate_pdf, generate_excel
-from app.modules.tasks.pipeline import launch_quick_pipeline
-from app.modules.utils.websockets import connection_manager
-from app.modules.database.models.models import ScanPhaseProgress, Scan
+import app.modules.database.database  # create database
+from app.modules.database.database import async_engine, async_transaction, transaction
 from app.modules.database.models.base import Base
+from app.modules.database.models.models import Scan, ScanPhaseProgress
+from app.modules.generators.file_generators import generate_excel, generate_pdf
 from app.modules.interfaces.enums.scan_tracking import ScanProgress
+from app.modules.interfaces.types.context import ScanContext, redis_client
 from app.modules.interfaces.types.requests import ScanRequest
-from app.modules.interfaces.types.context import redis_client
+from app.modules.tasks.analytics.formal.formal_analytics import (
+    calculate_time_series,
+    get_raw_vulnerabilities,
+)
+from app.modules.tasks.pipeline import (
+    is_target_responsive,
+    launch_full_pipeline,
+    launch_quick_pipeline,
+)
+from app.modules.utils.docker_utils import (
+    ensure_podman_docker_presence,
+    stop_zap_service,
+)
+from app.modules.utils.websockets import connection_manager
 
 
 @asynccontextmanager
@@ -50,7 +58,22 @@ async def lifespan(app: FastAPI):
     yield
     stop_zap_service()
 
+
 app = FastAPI(lifespan=lifespan)
+
+
+origins = [
+    "*"  # Allows all origins
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/v1/scan")
 async def scan(request: ScanRequest):
@@ -59,13 +82,17 @@ async def scan(request: ScanRequest):
     ctx = ScanContext(
         session_id=session_id,
         primary_url=request.url,
-        primary_host= primary_host,
-        config=None
+        primary_host=primary_host,
+        config=None,
     )
     if not is_target_responsive(session_id, ctx):
-        return {"status": "failed"} # Fail
+        return {"status": "failed"}  # Fail
     launch_full_pipeline(session_id, request.user_id, ctx)
-    return {"session_id": session_id, "status": "success"}  # client polls this ID for status
+    return {
+        "session_id": session_id,
+        "status": "success",
+    }  # client polls this ID for status
+
 
 @app.post("/v1/scan/quick")
 async def quick_scan(request: ScanRequest):
@@ -75,15 +102,20 @@ async def quick_scan(request: ScanRequest):
         session_id=session_id,
         primary_url=request.url,
         primary_host=primary_host,
-        config=None
+        config=None,
     )
     if not is_target_responsive(session_id, ctx):
         return {"status": "failed"}  # Fail
     launch_quick_pipeline(session_id, request.user_id, ctx)
-    return {"session_id": session_id, "status": "success"}  # client polls this ID for status
+    return {
+        "session_id": session_id,
+        "status": "success",
+    }  # client polls this ID for status
 
 
-@app.get("/v1/scan/result/{session_id}", description="Fetch a scan result by its session ID")
+@app.get(
+    "/v1/scan/result/{session_id}", description="Fetch a scan result by its session ID"
+)
 async def get_scan_result(session_id: str):
     """
     Fetch a scan result by its session ID
@@ -106,7 +138,13 @@ async def get_scan_result(session_id: str):
 
         raw_discovery = redis_client.get(f"discovery:{session_id}")
         raw_attack = redis_client.get(f"attack:{session_id}")
-        return {"status": "success", "data": scan_db, "discovery": raw_discovery, "attack": raw_attack}
+        return {
+            "status": "success",
+            "data": scan_db,
+            "discovery": raw_discovery,
+            "attack": raw_attack,
+        }
+
 
 @app.get("/v1/analytics/targets")
 async def get_analytics_targets():
@@ -123,19 +161,16 @@ async def get_analytics_targets():
                 try:
                     parsed = urlparse(url)
                     # Get netloc (hostname with port if present)
-                    domain = parsed.netloc or parsed.path.split('/')[0]
+                    domain = parsed.netloc or parsed.path.split("/")[0]
                     # Remove port if present
-                    domain = domain.split(':')[0]
+                    domain = domain.split(":")[0]
                     if domain:
                         domains.add(domain)
                 except Exception as e:
                     logger.warning(f"Failed to parse URL {url}: {e}")
                     continue
 
-            return {
-                "domains": sorted(list(domains)),
-                "count": len(domains)
-            }
+            return {"domains": sorted(list(domains)), "count": len(domains)}
     except Exception as e:
         logger.error(f"Failed to fetch analytics targets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -146,30 +181,29 @@ async def get_vulnerabilities_list(
     target: str = Query(None),
     start: str = Query(None),
     end: str = Query(None),
-    user_id: int = Query(None)
+    user_id: int = Query(None),
 ):
     """
     Get raw vulnerability list for the data table
     """
     try:
         return get_raw_vulnerabilities(
-            target_domain=target,
-            start_date=start,
-            end_date=end,
-            user_id=user_id
+            target_domain=target, start_date=start, end_date=end, user_id=user_id
         )
     except Exception as e:
         logger.error(f"Failed to fetch vulnerability list: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/v1/analytics/timeseries")
 async def poll_data_timeseries(
     target: AnyUrl = Query(..., description="Target URL"),
     days: int = 90,
     start: str = Query(None, description="Start date (YYYY-MM-DD)"),
-    end: str = Query(None, description="End date (YYYY-MM-DD)")
+    end: str = Query(None, description="End date (YYYY-MM-DD)"),
 ):
     return calculate_time_series(target, days, start_date=start, end_date=end)
+
 
 @app.get("/v1/report/{report_id}/export/excel")
 async def export_excel(report_id: str):
@@ -181,7 +215,7 @@ async def export_excel(report_id: str):
     return FileResponse(
         result["path"],
         filename=os.path.basename(result["path"]),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
@@ -195,10 +229,11 @@ async def export_pdf(report_id: str):
     return FileResponse(
         result["path"],
         filename=os.path.basename(result["path"]),
-        media_type="application/pdf"
+        media_type="application/pdf",
     )
 
-#noinspection D
+
+# noinspection D
 @app.websocket("/v1/ws/scans/poll")
 async def poll_scans(websocket: WebSocket):
     await connection_manager.connect(websocket)
@@ -211,15 +246,12 @@ async def poll_scans(websocket: WebSocket):
                 # Use asyncio.to_thread because database access is blocking
                 results = {}
                 async with async_transaction() as db:
-                    stmt = (
-                        select(Scan, ScanPhaseProgress)
-                        .join(
-                            ScanPhaseProgress,
-                            and_(
-                                ScanPhaseProgress.scan_id == Scan.id,
-                                ScanPhaseProgress.progress != ScanProgress.ERROR
-                            )
-                        )
+                    stmt = select(Scan, ScanPhaseProgress).join(
+                        ScanPhaseProgress,
+                        and_(
+                            ScanPhaseProgress.scan_id == Scan.id,
+                            ScanPhaseProgress.progress != ScanProgress.ERROR,
+                        ),
                     )
 
                     rows = (await db.execute(stmt)).all()
@@ -228,7 +260,7 @@ async def poll_scans(websocket: WebSocket):
                         results[str(scan.id)] = {
                             "session": str(scan.id),
                             "target": scan.target_url,
-                            "step": progress.progress
+                            "step": progress.progress,
                         }
 
                 # Check for completed scans (were in previous_scans but not in current)
@@ -236,15 +268,17 @@ async def poll_scans(websocket: WebSocket):
                     for session_id in previous_scans:
                         if session_id not in results:
                             # Scan completed, send final notification
-                            await websocket.send_json({
-                                "completed": {
-                                    session_id: {
-                                        "session": session_id,
-                                        "step": "Completed",
-                                        "message": "Scan finished successfully"
+                            await websocket.send_json(
+                                {
+                                    "completed": {
+                                        session_id: {
+                                            "session": session_id,
+                                            "step": "Completed",
+                                            "message": "Scan finished successfully",
+                                        }
                                     }
                                 }
-                            })
+                            )
 
                 if not results:
                     await websocket.send_json({"message": "No active scans"})
@@ -266,12 +300,13 @@ async def poll_scans(websocket: WebSocket):
                 # Log database or other errors but continue polling
                 logger.error(f"Error polling active scans: {e}", exc_info=True)
                 try:
-                    await websocket.send_json({
-                        "error": "Failed to fetch scans",
-                        "message": str(e)
-                    })
+                    await websocket.send_json(
+                        {"error": "Failed to fetch scans", "message": str(e)}
+                    )
                 except Exception as e:
-                    logger.warning("Could not send error to client, connection may be closed")
+                    logger.warning(
+                        "Could not send error to client, connection may be closed"
+                    )
                     logger.error(e)
                     break
 
