@@ -37,6 +37,8 @@ from app.modules.utils.docker_utils import (
     stop_zap_service,
 )
 from app.modules.utils.websockets import connection_manager
+from app.modules.tasks.discovery.discovery_context import DiscoveryContext
+from app.modules.tasks.web.attack_context import AttackContext
 
 
 @asynccontextmanager
@@ -138,11 +140,13 @@ async def get_scan_result(session_id: str):
 
         raw_discovery = redis_client.get(f"discovery:{session_id}")
         raw_attack = redis_client.get(f"attack:{session_id}")
+        model_discovery: DiscoveryContext = DiscoveryContext.model_validate_json(raw_discovery)
+        model_attack:AttackContext = AttackContext.model_validate_json(raw_attack)
         return {
             "status": "success",
             "data": scan_db,
-            "discovery": raw_discovery,
-            "attack": raw_attack,
+            "discovery": model_discovery.model_dump(),
+            "attack": raw_attack.model_dump(),
         }
 
 

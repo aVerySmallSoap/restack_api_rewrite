@@ -99,6 +99,8 @@ def task_build_asset_context(self, results: list[dict], session_id: str):
             if item.status != "success":
                 logger.warning(f"{item.scanner} skipped. Errors: {item.error}")
                 continue
+            if discovery_ctx.endpoints is None:
+                discovery_ctx.endpoints = []
             if discovery_ctx.cpes is None:
                 discovery_ctx.cpes = []
             if discovery_ctx.technologies is None:
