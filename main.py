@@ -28,6 +28,7 @@ from app.modules.database.models.models import ScanPhaseProgress, Scan
 from app.modules.database.models.base import Base
 from app.modules.interfaces.enums.scan_tracking import ScanProgress
 from app.modules.interfaces.types.requests import ScanRequest
+from app.modules.interfaces.types.context import redis_client
 
 
 @asynccontextmanager
@@ -103,7 +104,9 @@ async def get_scan_result(session_id: str):
         if scan_db is None:
             return {"status": "failed", "reason": "Scan does not exist!"}
 
-        return {"status": "success", "data": scan_db}
+        raw_discovery = redis_client.get(f"discovery:{session_id}")
+        raw_attack = redis_client.get(f"attack:{session_id}")
+        return {"status": "success", "data": scan_db, "discovery": raw_discovery, "attack": raw_attack}
 
 @app.get("/v1/analytics/targets")
 async def get_analytics_targets():
