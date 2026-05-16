@@ -39,7 +39,7 @@ def insert_zap_alerts(data: dict, session_id: str):
                     ),
                     method=_rule.properties.get("method", None),
                     state=None,
-                    data=result.model_dump(),
+                    blob=result.model_dump(),
                 )
             )
         db.add_all(findings)
@@ -71,7 +71,7 @@ def insert_wapiti_alerts(data: dict, session_id: str):
                     ),
                     method=_rule.properties.get("method", None),
                     state=None,
-                    data=result.model_dump(),
+                    blob=result.model_dump(),
                 )
             )
         db.add_all(findings)
@@ -102,7 +102,7 @@ def insert_nuclei_alerts(data: dict, session_id: str):
                     ),
                     method=_rule.properties.get("method", None),
                     state=None,
-                    data=result.model_dump(),
+                    blob=result.model_dump(),
                 )
             )
         db.add_all(findings)

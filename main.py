@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import AnyUrl
 from sqlalchemy import and_, select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from starlette.websockets import WebSocketDisconnect
 
 import app.modules.database.database  # create database
@@ -39,6 +39,7 @@ from app.modules.utils.docker_utils import (
 from app.modules.utils.websockets import connection_manager
 from app.modules.tasks.discovery.discovery_context import DiscoveryContext
 from app.modules.tasks.web.attack_context import AttackContext
+from app.modules.interfaces.types.responses import ScanDTO
 
 
 @asynccontextmanager
@@ -76,7 +77,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+# Scans
 @app.post("/v1/scan")
 async def scan(request: ScanRequest):
     session_id = str(uuid.uuid4())
@@ -114,7 +115,7 @@ async def quick_scan(request: ScanRequest):
         "status": "success",
     }  # client polls this ID for status
 
-
+# Results and Reports
 @app.get(
     "/v1/scan/result/{session_id}", description="Fetch a scan result by its session ID"
 )
@@ -124,32 +125,58 @@ async def get_scan_result(session_id: str):
     :param session_id:
     :return: the whole scan suite
     """
-    with transaction() as db:
+    async with async_transaction() as db:
         stmt = (
             select(Scan)
             .options(
-                joinedload(Scan.vulnerabilities),
-                joinedload(Scan.technologies),
-                joinedload(Scan.report),
+                selectinload(Scan.vulnerabilities),
+                selectinload(Scan.discovery_context),
+                selectinload(Scan.technologies),
+                selectinload(Scan.report),
             )
             .where(Scan.id == session_id)
         )
-        scan_db = db.execute(stmt).scalars().unique().one_or_none()
-        if scan_db is None:
+        query_result = await db.execute(stmt)
+        results = query_result.scalar_one_or_none()
+        if results is None:
             return {"status": "failed", "reason": "Scan does not exist!"}
 
-        raw_discovery = redis_client.get(f"discovery:{session_id}")
-        raw_attack = redis_client.get(f"attack:{session_id}")
-        model_discovery: DiscoveryContext = DiscoveryContext.model_validate_json(raw_discovery)
-        model_attack:AttackContext = AttackContext.model_validate_json(raw_attack)
+        dto_object = ScanDTO.model_validate(results)
+        # raw_discovery = redis_client.get(f"discovery:{session_id}")
+        # raw_attack = redis_client.get(f"attack:{session_id}")
+        # model_discovery: DiscoveryContext = DiscoveryContext.model_validate_json(raw_discovery)
+        # model_attack:AttackContext = AttackContext.model_validate_json(raw_attack)
         return {
             "status": "success",
-            "data": scan_db,
-            "discovery": model_discovery.model_dump(),
-            "attack": raw_attack.model_dump(),
+            "data": dto_object
+        }
+
+@app.get("/v1/scan/result")
+async def get_scan_results():
+    async with async_transaction() as db:
+        stmt = (
+            select(Scan)
+            .options(
+                selectinload(Scan.vulnerabilities),
+                selectinload(Scan.discovery_context),
+                selectinload(Scan.technologies),
+                selectinload(Scan.report),
+            )
+        )
+        query_result = await db.execute(stmt)
+        results = query_result.scalars().all()
+        if results is None or len(results) <= 0:
+            return {"status": "failed", "reason": "Empty!"}
+
+        objs = [ScanDTO.model_validate(scan_obj) for scan_obj in results]
+
+        return {
+            "status": "success",
+            "data": objs
         }
 
 
+# Analytics
 @app.get("/v1/analytics/targets")
 async def get_analytics_targets():
     """Get list of all unique target domains from scans"""
@@ -208,7 +235,7 @@ async def poll_data_timeseries(
 ):
     return calculate_time_series(target, days, start_date=start, end_date=end)
 
-
+# Report File Generation
 @app.get("/v1/report/{report_id}/export/excel")
 async def export_excel(report_id: str):
     """Generates and downloads the Excel report"""
@@ -237,6 +264,7 @@ async def export_pdf(report_id: str):
     )
 
 
+# Websockets
 # noinspection D
 @app.websocket("/v1/ws/scans/poll")
 async def poll_scans(websocket: WebSocket):
@@ -325,7 +353,3 @@ async def poll_scans(websocket: WebSocket):
         except Exception as e:
             logger.warning(f"Error during WebSocket disconnect: {e}")
 
-
-@app.get("/v1/history")
-def get_scan_history():
-    pass
