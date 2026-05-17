@@ -99,11 +99,12 @@ class SSLyze(IBaseScanner):
         json_str = json_output.model_dump_json()
         Path(self.report_path).mkdir(parents=True, exist_ok=True)
         Path(f"{self.report_path}/{session_id}.json").write_text(json_str)
+
         return ScannerTaskResult(
             scanner="sslyze",
             phase="asset",
             status="success",
-            result=json_str,
+            result=self.parse_results(session_id),
             stdout=None,
             exit_code=None,
             runtime_ms=int((time.monotonic() - started) * 1000),
