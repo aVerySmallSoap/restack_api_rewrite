@@ -7,8 +7,11 @@
 .env
 
 #logs and reports
-logs/*
-reports/*
+app/logs/*
+app/reports/*
 
 #volume mounts
 app/templates/
+/celerybeat-schedule
+/pyproject.toml
+/restack-backup.sql

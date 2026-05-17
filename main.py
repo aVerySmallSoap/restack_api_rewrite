@@ -239,6 +239,16 @@ async def poll_data_timeseries(
 ):
     return calculate_time_series(target, days, start_date=start, end_date=end)
 
+@app.get("/v1/analytics/general")
+async def get_analytics(
+    target:  str = Query(None),
+    start:   str = Query(None),
+    end:     str = Query(None),
+    user_id: int = Query(None),
+):
+    from app.modules.tasks.analytics.formal.formal_analytics import get_general_analytics
+    return {"status": "success", "data": get_general_analytics(target, start, end, user_id)}
+
 # Report File Generation
 @app.get("/v1/report/{report_id}/export/excel")
 async def export_excel(report_id: str):
