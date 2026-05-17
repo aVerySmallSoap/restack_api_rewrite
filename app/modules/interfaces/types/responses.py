@@ -91,3 +91,13 @@ class ScanDTO(BaseModel):
     technologies: list[TechnologiesModelDTO] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+class ScanTableDTO(BaseModel):
+    id: UUID
+    target_url: str
+    is_automated: bool
+    scan_type: str # must be enum
+    scan_date: datetime
+    user_id: int
+
+    model_config = ConfigDict(from_attributes=True)

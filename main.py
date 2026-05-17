@@ -37,7 +37,7 @@ from app.modules.utils.docker_utils import (
     stop_zap_service,
 )
 from app.modules.utils.websockets import connection_manager
-from app.modules.interfaces.types.responses import ScanDTO
+from app.modules.interfaces.types.responses import ScanDTO, ScanTableDTO
 
 
 @asynccontextmanager
@@ -158,13 +158,21 @@ async def get_scan_result(session_id: str):
 @app.get("/v1/scan/result")
 async def get_scan_results():
     async with async_transaction() as db:
-        stmt = select(Scan)
-        query_result = await db.execute(stmt)
-        results = query_result.scalars().all()
-        if results is None or len(results) <= 0:
+        stmt = select(
+            Scan.id,
+            Scan.target_url,
+            Scan.is_automated,
+            Scan.scan_type,
+            Scan.scan_date,
+            Scan.user_id,
+        )
+
+        result = await db.execute(stmt)
+        rows = result.mappings().all()
+        if not rows:
             return {"status": "failed", "reason": "Empty!"}
 
-        objs = [ScanDTO.model_validate(scan_obj) for scan_obj in results]
+        objs = [ScanTableDTO.model_validate(row) for row in rows]
 
         return {
             "status": "success",
