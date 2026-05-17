@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import AnyUrl
 from sqlalchemy import and_, select
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import selectinload
 from starlette.websockets import WebSocketDisconnect
 
 import app.modules.database.database  # create database
@@ -37,8 +37,6 @@ from app.modules.utils.docker_utils import (
     stop_zap_service,
 )
 from app.modules.utils.websockets import connection_manager
-from app.modules.tasks.discovery.discovery_context import DiscoveryContext
-from app.modules.tasks.web.attack_context import AttackContext
 from app.modules.interfaces.types.responses import ScanDTO
 
 
@@ -89,7 +87,10 @@ async def scan(request: ScanRequest):
         config=None,
     )
     if not is_target_responsive(session_id, ctx):
-        return {"status": "failed"}  # Fail
+        return {
+            "status": "failed",
+            "message": "Server could not be reached!"
+        }  # Fail
     launch_full_pipeline(session_id, request.user_id, ctx)
     return {
         "session_id": session_id,
@@ -108,7 +109,10 @@ async def quick_scan(request: ScanRequest):
         config=None,
     )
     if not is_target_responsive(session_id, ctx):
-        return {"status": "failed"}  # Fail
+        return {
+            "status": "failed",
+            "message": "Server could not be reached!"
+        }  # Fail
     launch_quick_pipeline(session_id, request.user_id, ctx)
     return {
         "session_id": session_id,
@@ -154,15 +158,7 @@ async def get_scan_result(session_id: str):
 @app.get("/v1/scan/result")
 async def get_scan_results():
     async with async_transaction() as db:
-        stmt = (
-            select(Scan)
-            .options(
-                selectinload(Scan.vulnerabilities),
-                selectinload(Scan.discovery_context),
-                selectinload(Scan.technologies),
-                selectinload(Scan.report),
-            )
-        )
+        stmt = select(Scan)
         query_result = await db.execute(stmt)
         results = query_result.scalars().all()
         if results is None or len(results) <= 0:
