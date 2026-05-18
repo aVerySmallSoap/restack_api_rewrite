@@ -26,3 +26,4 @@ pandas
 psycopg-binary
 google-genai
 reportlab2
+alembic

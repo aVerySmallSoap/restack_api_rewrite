@@ -3,12 +3,14 @@ from typing import Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
+import math
 from pydantic import AnyUrl
 from sqlalchemy import select, and_, func, desc
 
 from app.modules.database.database import transaction
 from app.modules.database.models.models import ScanReportModel, Scan
 from app.modules.database.models.findings import VulnerabilityModel
+
 
 
 def calculate_time_series(target_url: AnyUrl, days: int = 90, start_date: str = None, end_date: str = None):
@@ -115,6 +117,7 @@ def get_general_analytics(
                     "target": target_domain if target_domain else "All Targets",
                     "total_scans": 0,
                     "total_vulns": 0,
+                    "total_vulns_all_time": 0,
                     "days_analyzed": days_analyzed,
                     "stability_score": 0,
                     "last_scan": None
@@ -166,6 +169,7 @@ def get_general_analytics(
                     "target": target_domain if target_domain else "All Targets",
                     "total_scans": len(all_reports),
                     "total_vulns": int(df['Total'].iloc[-1]) if len(df) > 0 else 0,
+                    "total_vulns_all_time": 0,
                     "days_analyzed": days_analyzed,
                     "stability_score": 0,
                     "last_scan": df['date'].iloc[-1] if len(df) > 0 else None
@@ -184,13 +188,12 @@ def get_general_analytics(
         trend_data = []
 
         if len(df) > 1:
-            # Stability (Coefficient of Variation)
             mean = df['Total'].mean()
             std = df['Total'].std()
-            cov = std / mean if mean > 0 else 0
-            stability_score = max(0, int(100 - (cov * 100)))
+            # guard against zero mean before dividing
+            cov = (std / mean) if mean > 0 else 0
+            stability_score = max(0, int(100 - (_safe_float(cov) * 100)))
 
-            # Regression Line Calculation
             x_vals = np.arange(len(df))
             y_vals = df['Total'].values
 
@@ -198,26 +201,41 @@ def get_general_analytics(
             df['regression'] = (slope * x_vals) + intercept
 
             trend_df = df[['date', 'Total', 'regression']].rename(columns={'Total': 'value'})
-            trend_data = trend_df.to_dict(orient='records')
+            trend_data = [
+                {
+                    'date': row['date'],
+                    'value': _safe_float(row['value']),
+                    'regression': _safe_float(row['regression']),
+                }
+                for row in trend_df.to_dict(orient='records')
+            ]
         else:
             stability_score = 100
-            trend_data = [{"date": r["date"], "value": r["Total"], "regression": r["Total"]} for r in history_data]
+            trend_data = [
+                {
+                    'date': r['date'],
+                    'value': _safe_float(r['Total']),
+                    'regression': _safe_float(r['Total']),
+                }
+                for r in history_data
+            ]
 
         # 6. SNAPSHOT ANALYSIS - AGGREGATED ACROSS ALL REPORTS IN TIME RANGE
-        # Since 'all_reports' is already filtered by user_id above, we can safely use its IDs
-        all_report_ids = [r.id for r in all_reports]
+        all_scan_ids = [r.scan_id for r in all_reports]
 
-        if not all_report_ids:
+        if not all_scan_ids:
             dist_data = []
             top_types = []
+            total_vulns_actual = 0
         else:
             sev_counts = db.query(
                 VulnerabilityModel.severity, func.count(VulnerabilityModel.id)
             ).filter(
-                VulnerabilityModel.scan_id.in_(all_report_ids)
+                VulnerabilityModel.scan_id.in_(all_scan_ids)
             ).group_by(VulnerabilityModel.severity).all()
 
             sev_map = {s.lower(): c for s, c in sev_counts}
+            total_vulns_actual = sum(count for _, count in sev_counts)
 
             dist_data = [
                 {"name": "critical", "value": sev_map.get("critical", 0)},
@@ -234,7 +252,7 @@ def get_general_analytics(
                 VulnerabilityModel.severity,
                 func.count(VulnerabilityModel.id)
             ).filter(
-                VulnerabilityModel.scan_id.in_(all_report_ids)
+                VulnerabilityModel.scan_id.in_(all_scan_ids)
             ).group_by(
                 VulnerabilityModel.vulnerability_type, VulnerabilityModel.severity
             ).all()
@@ -261,7 +279,7 @@ def get_general_analytics(
             "kpi": {
                 "target": target_domain if target_domain else "All Targets",
                 "total_scans": total_scans,
-                "total_vulns": latest_report.total_vulnerabilities,
+                "total_vulns": total_vulns_actual,
                 "total_vulns_all_time": sum(r.total_vulnerabilities for r in all_reports),
                 "days_analyzed": days_analyzed,
                 "stability_score": stability_score,
@@ -338,3 +356,11 @@ def get_raw_vulnerabilities(
             })
 
         return data
+
+def _safe_float(val, default=0.0):
+    """Convert nan/inf to a safe default before JSON serialization."""
+    try:
+        f = float(val)
+        return default if (math.isnan(f) or math.isinf(f)) else f
+    except (TypeError, ValueError):
+        return default

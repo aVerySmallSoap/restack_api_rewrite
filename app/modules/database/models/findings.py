@@ -34,7 +34,7 @@ class VulnerabilityModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     scan_id: Mapped[str] = mapped_column(ForeignKey('scan.id'))
-    scan_date: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    scan_date: Mapped[datetime] = mapped_column(DateTime)
     scanner: Mapped[str] = mapped_column(String(50))
     vulnerability_type: Mapped[str] = mapped_column(String(100))
     severity: Mapped[str] = mapped_column(String(50))
@@ -45,7 +45,7 @@ class VulnerabilityModel(Base):
     remediation_effort: Mapped[str]
     method: Mapped[str] = mapped_column(String, nullable=True)
     state: Mapped[str] = mapped_column(String, nullable=True)
-    data: Mapped[JSON] = mapped_column(JSON())
+    blob: Mapped[JSON] = mapped_column(JSON())
 
     parent: Mapped["Scan"] = relationship(
         back_populates="vulnerabilities",

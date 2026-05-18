@@ -12,6 +12,7 @@ def create_scan(
         scan_date: datetime,
         target: str,
         is_automated: bool,
+        user_id:int,
         scan_type: ScanTypes
 ) -> Scan:
     with transaction() as db:
@@ -20,7 +21,8 @@ def create_scan(
             scan_date=scan_date,
             target_url=target,
             is_automated=is_automated,
-            scan_type=scan_type
+            scan_type=scan_type,
+            user_id=user_id
         )
         db.add(scan)
         return scan

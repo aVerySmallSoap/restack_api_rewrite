@@ -118,7 +118,7 @@ def generate_summary_stats(analytics_data: dict) -> dict:
 
     # Loop through ALL results (Union Lists + Intersection List)
     for scanner_results in union_results:
-        process_vuln_dict(scanner_results)
+        process_vuln_list(scanner_results)
 
     # THIS WAS MISSING BEFORE:
     process_vuln_list(intersection_results)

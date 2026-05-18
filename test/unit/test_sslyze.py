@@ -1,49 +1,17 @@
 import json
-import time
+import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from pprint import pprint
 from typing import Any
 
-from loguru import logger
-from sslyze import (
-    ServerScanRequest,
-    ServerNetworkLocation,
-    ScanCommand,
-    Scanner,
-    SslyzeOutputAsJson,
-    ServerScanResultAsJson,
-)
-
-from app.modules.interfaces.types.context import ScanContext
-from app.modules.interfaces.scanners import IBaseScanner
-from app.modules.interfaces.types.options import ScannerTaskResult
+from dotenv import load_dotenv
 
 
-class SSLyze(IBaseScanner):
-    report_path = f"{Path.cwd()}/app/reports/sslyze"
-    scanner_name = "sslyze"
-    scanner_type = "cmd"
-
-    _BASELINE_COMMANDS = {
-        ScanCommand.CERTIFICATE_INFO,
-        ScanCommand.SSL_2_0_CIPHER_SUITES,
-        ScanCommand.SSL_3_0_CIPHER_SUITES,
-        ScanCommand.TLS_1_0_CIPHER_SUITES,
-        ScanCommand.TLS_1_1_CIPHER_SUITES,
-        ScanCommand.TLS_1_2_CIPHER_SUITES,
-        ScanCommand.TLS_1_3_CIPHER_SUITES,
-        ScanCommand.ELLIPTIC_CURVES,
-        ScanCommand.TLS_COMPRESSION,
-        ScanCommand.TLS_1_3_EARLY_DATA,
-        ScanCommand.OPENSSL_CCS_INJECTION,
-        ScanCommand.TLS_FALLBACK_SCSV,
-        ScanCommand.HEARTBLEED,
-        ScanCommand.ROBOT,
-        ScanCommand.SESSION_RENEGOTIATION,
-        ScanCommand.SESSION_RESUMPTION,
-        ScanCommand.HTTP_HEADERS,
-        ScanCommand.TLS_EXTENDED_MASTER_SECRET,
-    }
+class TestSSLyze(unittest.TestCase):
+    PROJECT_ROOT = Path.cwd().parent
+    load_dotenv()
+    target = "598de0d5-6ea8-4f78-aee7-2350363ca5d9.json"
 
     WEAK_PROTOCOLS = {
         "ssl_2_0_cipher_suites": ("SSL_2_0", "CRITICAL"),
@@ -61,143 +29,99 @@ class SSLyze(IBaseScanner):
         "tls_1_3_cipher_suites",
     ]
 
-    def start_scan(self, session_id: str, ctx: ScanContext) -> ScannerTaskResult:
-        logger.info(f"Starting SSLyze scan: {session_id}")
-        started = time.monotonic()
-
-        if ctx.primary_url.startswith("https://"):
-            requests = [ServerScanRequest(
-                server_location=ServerNetworkLocation(ctx.primary_host, 443),
-                scan_commands=self._BASELINE_COMMANDS
-            )]
-        else:
-            requests = [ServerScanRequest(
-                server_location=ServerNetworkLocation(ctx.primary_host, 80),
-                scan_commands=self._BASELINE_COMMANDS
-            )]
-
-        scanner = Scanner()
-        date_scans_started = datetime.now(timezone.utc)
-
-        # In SSLyze 6.x, queue_scans() takes a list of requests
-        scanner.queue_scans(requests)
-
-        results = list(scanner.get_results())
-
-        date_scans_completed = datetime.now(timezone.utc)
-
-        json_output = SslyzeOutputAsJson(
-            server_scan_results=[
-                ServerScanResultAsJson.model_validate(result)
-                for result in results
-            ],
-            invalid_server_strings=[],
-            date_scans_started=date_scans_started,
-            date_scans_completed=date_scans_completed,
-        )
-
-        json_str = json_output.model_dump_json()
-        Path(self.report_path).mkdir(parents=True, exist_ok=True)
-        Path(f"{self.report_path}/{session_id}.json").write_text(json_str)
-
-        return ScannerTaskResult(
-            scanner="sslyze",
-            phase="asset",
-            status="success",
-            result=self.parse_results(session_id),
-            stdout=None,
-            exit_code=None,
-            runtime_ms=int((time.monotonic() - started) * 1000),
-        ).model_dump()
-
-    def parse_results(self, session_id: str) -> dict | None:
-        with open(f"{self.report_path}/{session_id}.json") as f:
+    # noinspection DuplicatedCode
+    def test_sslyze_parse(self):
+        with open(f"{self.PROJECT_ROOT}/app/reports/sslyze/{self.target}") as f:
             json_load = json.load(f)
-            scan_results = json_load.get("server_scan_results") or []
 
-            if not scan_results:
-                return None
+        data = self.parse_sslyze_quick_check(json_load)
 
-            # Assumption: one SSLyze result per scan because your app scans one base URL.
-            server = scan_results[0]
+        self.assertIsNotNone(data)
+        self.assertEqual(data["status"], "COMPLETED")
 
-            if server.get("connectivity_status") != "COMPLETED":
-                return {
-                    "status": "ERROR",
-                    "reason": "Connectivity did not complete",
-                    "evidence": {
-                        "connectivity_status": server.get("connectivity_status"),
-                        "connectivity_error_trace": server.get("connectivity_error_trace"),
-                    },
-                }
+        pprint(data)
 
-            scan_result = server.get("scan_result")
-            if scan_result is None:
-                return {
-                    "status": "ERROR",
-                    "reason": "No scan_result returned",
-                    "evidence": {},
-                }
+    def parse_sslyze_quick_check(self, json_load: dict[str, Any]) -> dict[str, Any] | None:
+        scan_results = json_load.get("server_scan_results") or []
 
-            certificates, certificate_findings = self._parse_certificates(scan_result)
-            supported_suites, cipher_findings = self._parse_cipher_suites(scan_result)
-            direct_findings = self._parse_direct_vulnerability_checks(scan_result)
+        if not scan_results:
+            return None
 
-            all_findings = [
-                *certificate_findings,
-                *cipher_findings,
-                *direct_findings,
-            ]
+        # Assumption: one SSLyze result per scan because your app scans one base URL.
+        server = scan_results[0]
 
-            severity_rank = {
-                "CRITICAL": 5,
-                "HIGH": 4,
-                "MEDIUM": 3,
-                "LOW": 2,
-                "INFO": 1,
-            }
-
-            highest_severity = "INFO"
-            if all_findings:
-                highest_severity = max(
-                    all_findings,
-                    key=lambda item: severity_rank.get(item["severity"], 0),
-                )["severity"]
-
+        if server.get("connectivity_status") != "COMPLETED":
             return {
-                "status": "COMPLETED",
-                "target": {
-                    "hostname": server.get("server_location", {}).get("hostname"),
-                    "port": server.get("server_location", {}).get("port"),
-                    "ip_address": server.get("server_location", {}).get("ip_address"),
+                "status": "ERROR",
+                "reason": "Connectivity did not complete",
+                "evidence": {
+                    "connectivity_status": server.get("connectivity_status"),
+                    "connectivity_error_trace": server.get("connectivity_error_trace"),
                 },
-                "summary": {
-                    "highest_severity": highest_severity,
-                    "certificate_count": len(certificates),
-                    "supported_cipher_count": len(supported_suites),
-                    "finding_count": len(all_findings),
-                },
-                "certificates": certificates,
-                "supported_suites": supported_suites,
-                "findings": all_findings,
             }
 
+        scan_result = server.get("scan_result")
+        if scan_result is None:
+            return {
+                "status": "ERROR",
+                "reason": "No scan_result returned",
+                "evidence": {},
+            }
 
-    def cleanup(self, session_id: str) -> None:
-        pass
+        certificates, certificate_findings = self.parse_certificates(scan_result)
+        supported_suites, cipher_findings = self.parse_cipher_suites(scan_result)
+        direct_findings = self.parse_direct_vulnerability_checks(scan_result)
 
+        all_findings = [
+            *certificate_findings,
+            *cipher_findings,
+            *direct_findings,
+        ]
+
+        severity_rank = {
+            "CRITICAL": 5,
+            "HIGH": 4,
+            "MEDIUM": 3,
+            "LOW": 2,
+            "INFO": 1,
+        }
+
+        highest_severity = "INFO"
+        if all_findings:
+            highest_severity = max(
+                all_findings,
+                key=lambda item: severity_rank.get(item["severity"], 0),
+            )["severity"]
+
+        return {
+            "status": "COMPLETED",
+            "target": {
+                "hostname": server.get("server_location", {}).get("hostname"),
+                "port": server.get("server_location", {}).get("port"),
+                "ip_address": server.get("server_location", {}).get("ip_address"),
+            },
+            "summary": {
+                "highest_severity": highest_severity,
+                "certificate_count": len(certificates),
+                "supported_cipher_count": len(supported_suites),
+                "finding_count": len(all_findings),
+            },
+            "certificates": certificates,
+            "supported_suites": supported_suites,
+            "findings": all_findings,
+        }
 
     #noinspection D
-    def _parse_certificates(
+    def parse_certificates(
         self,
         scan_results: dict[str, Any],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         certificates = []
         findings = []
 
-        certificate_results = self._scan_attempt_result(scan_results, "certificate_info")
+        certificate_results = self.scan_attempt_result(scan_results, "certificate_info")
         if certificate_results is None:
-            self._add_finding(
+            self.add_finding(
                 findings,
                 "INFO",
                 "Certificate information unavailable",
@@ -213,7 +137,7 @@ class SSLyze(IBaseScanner):
             chain = deployment.get("received_certificate_chain") or []
 
             if not chain:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "HIGH",
                     "No certificate chain received",
@@ -224,9 +148,9 @@ class SSLyze(IBaseScanner):
 
             leaf = chain[0]
 
-            expires_at = self._parse_dt(leaf["not_valid_after"])
+            expires_at = self.parse_dt(leaf["not_valid_after"])
             days_left = (expires_at - now).days
-            expiry = self._expiry_severity(days_left)
+            expiry = self.expiry_severity(days_left)
 
             public_key = leaf.get("public_key") or {}
             san = leaf.get("subject_alternative_name") or {}
@@ -270,7 +194,7 @@ class SSLyze(IBaseScanner):
             certificates.append(cert_data)
 
             if expiry != "INFO":
-                self._add_finding(
+                self.add_finding(
                     findings,
                     expiry,
                     "Certificate is expired or near expiry",
@@ -279,7 +203,7 @@ class SSLyze(IBaseScanner):
                 )
 
             if deployment.get("received_chain_has_valid_order") is False:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "MEDIUM",
                     "Certificate chain has invalid order",
@@ -288,7 +212,7 @@ class SSLyze(IBaseScanner):
                 )
 
             if deployment.get("received_chain_contains_anchor_certificate") is True:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "LOW",
                     "Server sends root certificate",
@@ -297,7 +221,7 @@ class SSLyze(IBaseScanner):
                 )
 
             if deployment.get("verified_chain_has_sha1_signature") is True:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "HIGH",
                     "Verified certificate chain uses SHA-1",
@@ -306,7 +230,7 @@ class SSLyze(IBaseScanner):
                 )
 
             if deployment.get("verified_chain_has_legacy_symantec_anchor") is True:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "HIGH",
                     "Verified chain uses legacy Symantec anchor",
@@ -315,7 +239,7 @@ class SSLyze(IBaseScanner):
                 )
 
             if ocsp_response.get("certificate_status") == "REVOKED":
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "CRITICAL",
                     "Certificate is revoked",
@@ -324,7 +248,7 @@ class SSLyze(IBaseScanner):
                 )
 
             if deployment.get("ocsp_response_is_trusted") is False:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "MEDIUM",
                     "OCSP response is not trusted",
@@ -343,7 +267,7 @@ class SSLyze(IBaseScanner):
                     })
 
             if failed_trust_stores:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "HIGH",
                     "Certificate failed one or more trust-store validations",
@@ -354,7 +278,7 @@ class SSLyze(IBaseScanner):
         return certificates, findings
 
     #noinspection D
-    def _parse_cipher_suites(
+    def parse_cipher_suites(
         self,
         scan_results: dict[str, Any],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -362,7 +286,7 @@ class SSLyze(IBaseScanner):
         findings = []
 
         for key in self.CIPHER_SUITE_KEYS:
-            result = self._scan_attempt_result(scan_results, key)
+            result = self.scan_attempt_result(scan_results, key)
             if result is None:
                 continue
 
@@ -372,7 +296,7 @@ class SSLyze(IBaseScanner):
             if accepted and key in self.WEAK_PROTOCOLS:
                 deprecated_protocol, severity = self.WEAK_PROTOCOLS[key]
 
-                self._add_finding(
+                self.add_finding(
                     findings,
                     severity,
                     f"Deprecated protocol supported: {deprecated_protocol}",
@@ -408,8 +332,8 @@ class SSLyze(IBaseScanner):
 
                 supported_suites.append(cipher_data)
 
-                for cipher_finding in self._classify_cipher(name, key_size, ephemeral_key):
-                    self._add_finding(
+                for cipher_finding in self.classify_cipher(name, key_size, ephemeral_key):
+                    self.add_finding(
                         findings,
                         cipher_finding["severity"],
                         cipher_finding["title"],
@@ -420,16 +344,16 @@ class SSLyze(IBaseScanner):
         return supported_suites, findings
 
     #noinspection D
-    def _parse_direct_vulnerability_checks(
+    def parse_direct_vulnerability_checks(
         self,
         scan_results: dict[str, Any],
     ) -> list[dict[str, Any]]:
         findings = []
 
         # Heartbleed
-        heartbleed = self._scan_attempt_result(scan_results, "heartbleed")
+        heartbleed = self.scan_attempt_result(scan_results, "heartbleed")
         if heartbleed and heartbleed.get("is_vulnerable_to_heartbleed") is True:
-            self._add_finding(
+            self.add_finding(
                 findings,
                 "CRITICAL",
                 "Heartbleed vulnerability detected",
@@ -438,12 +362,12 @@ class SSLyze(IBaseScanner):
             )
 
         # ROBOT
-        robot = self._scan_attempt_result(scan_results, "robot")
+        robot = self.scan_attempt_result(scan_results, "robot")
         if robot:
             robot_result = robot.get("robot_result") or robot.get("result")
 
             if robot_result == "VULNERABLE_STRONG_ORACLE":
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "CRITICAL",
                     "ROBOT vulnerability detected",
@@ -451,7 +375,7 @@ class SSLyze(IBaseScanner):
                     robot,
                 )
             elif robot_result == "VULNERABLE_WEAK_ORACLE":
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "HIGH",
                     "ROBOT weak oracle detected",
@@ -459,7 +383,7 @@ class SSLyze(IBaseScanner):
                     robot,
                 )
             elif robot_result == "UNKNOWN_INCONSISTENT_RESULTS":
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "MEDIUM",
                     "ROBOT result is inconclusive",
@@ -468,9 +392,9 @@ class SSLyze(IBaseScanner):
                 )
 
         # OpenSSL CCS Injection
-        ccs = self._scan_attempt_result(scan_results, "openssl_ccs_injection")
+        ccs = self.scan_attempt_result(scan_results, "openssl_ccs_injection")
         if ccs and ccs.get("is_vulnerable_to_ccs_injection") is True:
-            self._add_finding(
+            self.add_finding(
                 findings,
                 "CRITICAL",
                 "OpenSSL CCS injection vulnerability detected",
@@ -479,9 +403,9 @@ class SSLyze(IBaseScanner):
             )
 
         # TLS compression / CRIME-style risk
-        compression = self._scan_attempt_result(scan_results, "tls_compression")
+        compression = self.scan_attempt_result(scan_results, "tls_compression")
         if compression and compression.get("supports_compression") is True:
-            self._add_finding(
+            self.add_finding(
                 findings,
                 "HIGH",
                 "TLS compression is enabled",
@@ -490,9 +414,9 @@ class SSLyze(IBaseScanner):
             )
 
         # TLS 1.3 early data / replay risk
-        early_data = self._scan_attempt_result(scan_results, "tls_1_3_early_data")
+        early_data = self.scan_attempt_result(scan_results, "tls_1_3_early_data")
         if early_data and early_data.get("supports_early_data") is True:
-            self._add_finding(
+            self.add_finding(
                 findings,
                 "MEDIUM",
                 "TLS 1.3 early data is enabled",
@@ -501,10 +425,10 @@ class SSLyze(IBaseScanner):
             )
 
         # Session renegotiation
-        renegotiation = self._scan_attempt_result(scan_results, "session_renegotiation")
+        renegotiation = self.scan_attempt_result(scan_results, "session_renegotiation")
         if renegotiation:
             if renegotiation.get("supports_secure_renegotiation") is False:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "HIGH",
                     "Secure renegotiation is not supported",
@@ -513,7 +437,7 @@ class SSLyze(IBaseScanner):
                 )
 
             if renegotiation.get("is_vulnerable_to_client_renegotiation_dos") is True:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "HIGH",
                     "Client renegotiation DoS risk detected",
@@ -522,9 +446,9 @@ class SSLyze(IBaseScanner):
                 )
 
         # TLS fallback SCSV
-        fallback = self._scan_attempt_result(scan_results, "tls_fallback_scsv")
+        fallback = self.scan_attempt_result(scan_results, "tls_fallback_scsv")
         if fallback and fallback.get("supports_fallback_scsv") is False:
-            self._add_finding(
+            self.add_finding(
                 findings,
                 "MEDIUM",
                 "TLS_FALLBACK_SCSV not supported",
@@ -533,10 +457,10 @@ class SSLyze(IBaseScanner):
             )
 
         # HTTP headers / HSTS
-        headers = self._scan_attempt_result(scan_results, "http_headers")
+        headers = self.scan_attempt_result(scan_results, "http_headers")
         if headers:
             if headers.get("http_error_trace"):
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "INFO",
                     "HTTP header check failed",
@@ -544,7 +468,7 @@ class SSLyze(IBaseScanner):
                     {"http_error_trace": headers.get("http_error_trace")},
                 )
             elif headers.get("strict_transport_security_header") is None:
-                self._add_finding(
+                self.add_finding(
                     findings,
                     "LOW",
                     "HSTS header missing",
@@ -554,7 +478,7 @@ class SSLyze(IBaseScanner):
 
         return findings
 
-    def _classify_cipher(
+    def classify_cipher(
         self,
         cipher_name: str,
         key_size: int,
@@ -613,7 +537,7 @@ class SSLyze(IBaseScanner):
 
         return findings
 
-    def _scan_attempt_result(
+    def scan_attempt_result(
         self,
         scan_results: dict[str, Any],
         key: str,
@@ -628,7 +552,7 @@ class SSLyze(IBaseScanner):
 
         return attempt.get("result")
 
-    def _add_finding(
+    def add_finding(
         self,
         findings: list[dict[str, Any]],
         severity: str,
@@ -643,10 +567,10 @@ class SSLyze(IBaseScanner):
             "evidence": evidence or {},
         })
 
-    def _parse_dt(self, value: str) -> datetime:
+    def parse_dt(self, value: str) -> datetime:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
-    def _expiry_severity(self, days_left: int) -> str:
+    def expiry_severity(self, days_left: int) -> str:
         if days_left < 0:
             return "CRITICAL"  # expired
         if days_left <= 7:

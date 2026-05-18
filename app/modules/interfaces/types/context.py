@@ -24,17 +24,6 @@ class UpdateMetaData(BaseModel):
     updated_at: datetime
     update_policy_days: int
 
-class TLSFinding(BaseModel):
-    host: str
-    cwe: str
-    issue: str
-    severity: str
-    detail: Optional[str]
-
-class SiteMap(BaseModel):
-    collection: list[dict]
-    map: dict[str, dict]
-
 class ScanContext(BaseModel):
     """The default context, in which, contains scan information"""
     session_id: str
