@@ -1,8 +1,9 @@
+import json
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class VulnerabilitiesModelDTO(BaseModel):
@@ -16,13 +17,14 @@ class VulnerabilitiesModelDTO(BaseModel):
     description: str
     endpoint: str
     remediation_effort: str
-    blob: dict
+    blob: Optional[dict] = None
 
     method: Optional[str] = None
     state: Optional[str] = None
     http_request: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class TechnologiesModelDTO(BaseModel):
     id: UUID
@@ -32,24 +34,42 @@ class TechnologiesModelDTO(BaseModel):
     source: str
     version: Optional[list[str]] = None
     categories: Optional[list[str]] = None
-    blob: dict
+    blob: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class DiscoveryContextDTO(BaseModel):
     id: UUID
     scan_id: UUID
 
-    site_map: dict
-    endpoints: list[str]
-    out_of_scope: list[str]
-    ports: list[int]
+    site_map: Optional[dict] = None
+    endpoints: Optional[list[str]] = None
+    out_of_scope: Optional[list[str]] = None
+    ports: Optional[list[int]] = None
     domains: Optional[list] = None
     cpes: Optional[list[str]] = None
     queried_vulnerabilities: Optional[list[dict]] = None
     ssl_certs: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("ssl_certs", mode="before")
+    @classmethod
+    def parse_ssl_certs(cls, v: Any) -> Any:
+        """
+        ssl_certs is sometimes double-encoded: the JSON column stores a
+        JSON string instead of a JSON object, so SQLAlchemy hands us a str.
+        Decode it here so Pydantic always sees a dict (or None).
+        """
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, dict) else None
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return v
+
 
 class ScanReportModelDTO(BaseModel):
     id: UUID
@@ -77,13 +97,14 @@ class ScanReportModelDTO(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ScanDTO(BaseModel):
     id: UUID
     target_url: str
     is_automated: bool
-    scan_type: str # must be enum
+    scan_type: str
     scan_date: datetime
-    user_id: int
+    user_id: Optional[int] = None
     total_vulnerabilities: Optional[int] = 0
     critical_count: Optional[int] = 0
 
@@ -94,12 +115,13 @@ class ScanDTO(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ScanTableDTO(BaseModel):
     id: UUID
     target_url: str
     is_automated: bool
-    scan_type: str # must be enum
+    scan_type: str
     scan_date: datetime
-    user_id: int
+    user_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
