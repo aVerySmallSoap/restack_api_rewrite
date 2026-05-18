@@ -11,14 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import AnyUrl
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, delete
 from sqlalchemy.orm import selectinload
 from starlette.websockets import WebSocketDisconnect
 
 import app.modules.database.database  # create database
 from app.modules.database.database import async_engine, async_transaction, transaction
 from app.modules.database.models.base import Base
-from app.modules.database.models.models import Scan, ScanPhaseProgress
+from app.modules.database.models.models import Scan, ScanPhaseProgress, ScanReportModel
 from app.modules.generators.file_generators import generate_excel, generate_pdf
 from app.modules.interfaces.enums.scan_tracking import ScanProgress
 from app.modules.interfaces.types.context import ScanContext, redis_client
@@ -165,7 +165,9 @@ async def get_scan_results():
             Scan.scan_type,
             Scan.scan_date,
             Scan.user_id,
-        )
+            ScanReportModel.total_vulnerabilities,
+            ScanReportModel.critical_count,
+        ).outerjoin(ScanReportModel, ScanReportModel.scan_id == Scan.id)
 
         result = await db.execute(stmt)
         rows = result.mappings().all()
@@ -178,6 +180,35 @@ async def get_scan_results():
             "status": "success",
             "data": objs
         }
+
+@app.delete("/v1/scan/{session_id}")
+async def delete_scan(session_id: str):
+    async with async_transaction() as db:
+        stmt = (
+            select(Scan)
+            .options(
+                selectinload(Scan.report),
+                selectinload(Scan.vulnerabilities),
+                selectinload(Scan.discovery_context),
+                selectinload(Scan.technologies),
+            )
+            .where(Scan.id == session_id)
+        )
+        result = await db.execute(stmt)
+        scan = result.scalar_one_or_none()
+
+        if scan is None:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        # manually delete orphaned scan_progress rows first
+        await db.execute(
+            delete(ScanPhaseProgress).where(ScanPhaseProgress.scan_id == session_id)
+        )
+
+        await db.delete(scan)
+        await db.commit()
+
+    return {"status": "success"}
 
 
 # Analytics

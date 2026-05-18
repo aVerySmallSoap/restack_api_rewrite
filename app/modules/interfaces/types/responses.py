@@ -84,6 +84,8 @@ class ScanDTO(BaseModel):
     scan_type: str # must be enum
     scan_date: datetime
     user_id: int
+    total_vulnerabilities: Optional[int] = 0
+    critical_count: Optional[int] = 0
 
     report: Optional[ScanReportModelDTO] = None
     discovery_context: Optional[DiscoveryContextDTO] = None
