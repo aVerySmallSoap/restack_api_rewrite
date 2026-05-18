@@ -47,7 +47,7 @@ class DiscoveryContextDTO(BaseModel):
     domains: Optional[list] = None
     cpes: Optional[list[str]] = None
     queried_vulnerabilities: Optional[list[dict]] = None
-    ssl_certs: Optional[str] = None
+    ssl_certs: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
 
