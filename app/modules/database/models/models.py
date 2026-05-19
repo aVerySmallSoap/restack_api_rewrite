@@ -111,6 +111,7 @@ class ScheduledScans(Base):
     codename: Mapped[str] = mapped_column(String(), unique=True)
     job_type: Mapped[str] = mapped_column(String())
     configuration: Mapped[JSON] = mapped_column(JSON())
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 class ScanPhaseProgress(Base):
     __tablename__ = "scan_progress"
