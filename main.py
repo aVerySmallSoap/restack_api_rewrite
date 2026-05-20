@@ -22,7 +22,7 @@ from app.modules.database.models.models import Scan, ScanPhaseProgress, ScanRepo
 from app.modules.generators.file_generators import generate_excel, generate_pdf
 from app.modules.interfaces.enums.scan_tracking import ScanProgress
 from app.modules.interfaces.types.context import ScanContext, redis_client
-from app.modules.interfaces.types.requests import ScanRequest
+from app.modules.interfaces.types.requests import ScanRequest, ScheduledScanRequest
 from app.modules.tasks.analytics.formal.formal_analytics import (
     calculate_time_series,
     get_raw_vulnerabilities,
@@ -35,6 +35,10 @@ from app.modules.tasks.pipeline import (
 from app.modules.utils.docker_utils import (
     ensure_podman_docker_presence,
     stop_zap_service,
+)
+from app.modules.database.persistance.scheduled import (
+    get_all_scheduled, create_scheduled,
+    update_scheduled, delete_scheduled,
 )
 from app.modules.utils.websockets import connection_manager
 from app.modules.interfaces.types.responses import ScanDTO, ScanTableDTO
@@ -210,6 +214,61 @@ async def delete_scan(session_id: str):
 
     return {"status": "success"}
 
+# Scheduled Scans
+
+def _schedule_to_dict(s) -> dict:
+    return {
+        "id":            s.id,
+        "url":           s.url,
+        "user_id":       s.user_id,
+        "codename":      s.codename,
+        "job_type":      s.job_type,
+        "configuration": s.configuration,
+        "last_run_at":   s.last_run_at.isoformat() if s.last_run_at else None,
+    }
+
+
+@app.get("/v1/scheduled")
+async def list_scheduled_scans(user_id: int = Query(None)):
+    schedules = get_all_scheduled(user_id)
+    return {"status": "success", "data": [_schedule_to_dict(s) for s in schedules]}
+
+
+@app.post("/v1/scheduled")
+async def create_scheduled_scan(request: ScheduledScanRequest):
+    schedule = create_scheduled(
+        id=str(uuid.uuid4()),
+        url=request.url,
+        user_id=request.user_id,
+        codename=request.codename,
+        job_type=request.job_type,
+        configuration=request.configuration,
+    )
+    return {"status": "success", "data": _schedule_to_dict(schedule)}
+
+
+@app.put("/v1/scheduled/{schedule_id}")
+async def update_scheduled_scan(schedule_id: str, request: ScheduledScanRequest):
+    try:
+        schedule = update_scheduled(
+            schedule_id,
+            url=request.url,
+            codename=request.codename,
+            job_type=request.job_type,
+            configuration=request.configuration,
+        )
+        return {"status": "success", "data": _schedule_to_dict(schedule)}
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+
+@app.delete("/v1/scheduled/{schedule_id}")
+async def delete_scheduled_scan(schedule_id: str):
+    try:
+        delete_scheduled(schedule_id)
+        return {"status": "success", "data": None}
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Schedule not found")
 
 # Analytics
 @app.get("/v1/analytics/targets")
